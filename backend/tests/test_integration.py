@@ -22,7 +22,6 @@ from sqlalchemy import select
 from app.models.divergence import GridSnapshot, PointMetric
 from app.models.model_run import ModelRun, RunStatus
 
-
 # ---------------------------------------------------------------------------
 # Factory helpers
 # ---------------------------------------------------------------------------
@@ -146,7 +145,9 @@ async def test_grid_snapshot_bbox_json_round_trip(db):
 
 async def test_multiple_runs_queryable_by_model_name(db):
     """Multiple ModelRun rows can be filtered by model_name."""
-    db.add_all([_run(model_name="GFS"), _run(model_name="NAM"), _run(model_name="ECMWF")])
+    db.add_all([
+        _run(model_name="GFS"), _run(model_name="NAM"), _run(model_name="ECMWF"),
+    ])
     await db.commit()
 
     result = await db.execute(
@@ -264,8 +265,8 @@ async def test_get_point_divergence_excludes_distant_point(http_client, db):
     await db.commit()
 
     db.add_all([
-        _metric(run_a_id=run_a.id, run_b_id=run_b.id, lat=40.71, lon=-74.01),   # nearby
-        _metric(run_a_id=run_a.id, run_b_id=run_b.id, lat=34.05, lon=-118.24),  # Los Angeles
+        _metric(run_a_id=run_a.id, run_b_id=run_b.id, lat=40.71, lon=-74.01),
+        _metric(run_a_id=run_a.id, run_b_id=run_b.id, lat=34.05, lon=-118.24),
     ])
     await db.commit()
 
@@ -343,7 +344,8 @@ async def test_divergence_summary_excludes_variables_without_data(http_client, d
     db.add(_metric(run_a_id=run_a.id, run_b_id=run_b.id, variable="precip"))
     await db.commit()
 
-    variables = [s["variable"] for s in (await http_client.get("/api/divergence/summary")).json()]
+    resp = await http_client.get("/api/divergence/summary")
+    variables = [s["variable"] for s in resp.json()]
     for absent in ("wind_speed", "mslp", "hgt_500"):
         assert absent not in variables
 

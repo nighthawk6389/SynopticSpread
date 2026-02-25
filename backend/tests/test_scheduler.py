@@ -84,7 +84,8 @@ async def test_ingest_skips_already_processed_run():
 
 @pytest.mark.asyncio
 async def test_ingest_sets_error_status_on_fetch_failure():
-    """A RuntimeError from the fetcher causes run.status to be set to RunStatus.error."""
+    """A RuntimeError from the fetcher causes run.status to be set to
+    RunStatus.error."""
     from app.models.model_run import RunStatus
 
     run_record = MagicMock()

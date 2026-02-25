@@ -87,7 +87,8 @@ def test_gfs_fetches_non_wind_variable():
 
 
 def test_gfs_computes_wind_speed_from_components():
-    """GFSFetcher merges U/V components and returns wind_speed via compute_wind_speed."""
+    """GFSFetcher merges U/V components and returns wind_speed via
+    compute_wind_speed."""
     from app.services.ingestion.gfs import GFSFetcher
 
     herbie_inst = _herbie_for({
@@ -153,6 +154,7 @@ def test_ecmwf_init_graceful_when_cdsapi_unavailable():
 
     with patch.dict(sys.modules, {"cdsapi": mock_cdsapi}):
         import importlib
+
         import app.services.ingestion.ecmwf as ecmwf_mod
         importlib.reload(ecmwf_mod)
         fetcher = ecmwf_mod.ECMWFFetcher()

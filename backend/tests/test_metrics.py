@@ -15,7 +15,9 @@ def _make_dataset(variable: str, value: float) -> xr.Dataset:
     lat = np.array([39.0, 40.0, 41.0])
     lon = np.array([-75.0, -74.0, -73.0])
     data = np.full((3, 3), value)
-    da = xr.DataArray(data, coords={"latitude": lat, "longitude": lon}, dims=["latitude", "longitude"])
+    da = xr.DataArray(
+        data, coords={"latitude": lat, "longitude": lon}, dims=["latitude", "longitude"]
+    )
     return xr.Dataset({variable: da})
 
 

@@ -12,7 +12,9 @@ def _make_grid_dataset(variable: str, value: float, offset: float = 0.0) -> xr.D
     lat = np.arange(35.0, 45.0, 0.25)
     lon = np.arange(-80.0, -70.0, 0.25)
     data = np.full((len(lat), len(lon)), value) + offset
-    da = xr.DataArray(data, coords={"latitude": lat, "longitude": lon}, dims=["latitude", "longitude"])
+    da = xr.DataArray(
+        data, coords={"latitude": lat, "longitude": lon}, dims=["latitude", "longitude"]
+    )
     return xr.Dataset({variable: da})
 
 

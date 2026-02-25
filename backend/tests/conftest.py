@@ -14,7 +14,7 @@ import os
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import TypeDecorator, Text
+from sqlalchemy import Text, TypeDecorator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # ---------------------------------------------------------------------------

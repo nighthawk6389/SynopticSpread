@@ -11,7 +11,6 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
-import pytest
 import xarray as xr
 from httpx import ASGITransport, AsyncClient
 
@@ -26,14 +25,17 @@ os.environ.setdefault("SCHEDULER_ENABLED", "false")
 def _mock_execute(*, scalars_all=None, scalar_one=None, one=None):
     """Return a MagicMock that mimics an SQLAlchemy AsyncResult."""
     result = MagicMock()
-    result.scalars.return_value.all.return_value = scalars_all if scalars_all is not None else []
+    result.scalars.return_value.all.return_value = (
+        scalars_all if scalars_all is not None else []
+    )
     result.scalar_one_or_none.return_value = scalar_one
     result.one_or_none.return_value = one
     return result
 
 
 def _make_session(execute_return=None):
-    """Return an AsyncMock session that returns execute_return for every execute() call."""
+    """Return an AsyncMock session that returns execute_return for every
+    execute() call."""
     session = AsyncMock()
     if execute_return is not None:
         session.execute.return_value = execute_return
