@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     ecmwf_api_url: str = "https://cds.climate.copernicus.eu/api"
     data_store_path: Path = Path("./data")
     scheduler_enabled: bool = True
+    # Create ORM tables automatically on startup (set to true in production).
+    database_auto_create: bool = False
+    # Origins allowed by the CORS middleware (comma-separated list or JSON array).
+    allowed_origins: list[str] = ["http://localhost:5173"]
 
     # Predefined monitoring points (lat, lon, label)
     monitor_points: list[tuple[float, float, str]] = [

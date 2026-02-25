@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.routers import divergence, forecasts
@@ -9,10 +11,18 @@ from app.routers import divergence, forecasts
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: ensure data directory exists
+    # Ensure the data directory exists.
     settings.data_store_path.mkdir(parents=True, exist_ok=True)
 
-    # Start scheduler if enabled
+    # Optionally create all ORM tables on first boot (set DATABASE_AUTO_CREATE=true
+    # in production environments that don't use Alembic migrations).
+    if settings.database_auto_create:
+        from app.database import Base, engine
+
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    # Start the ingestion scheduler if enabled.
     if settings.scheduler_enabled:
         from app.services.scheduler import scheduler
 
@@ -20,7 +30,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown
     if settings.scheduler_enabled:
         from app.services.scheduler import scheduler
 
@@ -36,7 +45,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,3 +58,12 @@ app.include_router(divergence.router, prefix="/api")
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Serve the compiled frontend (present in production Docker builds).
+# In development Vite runs on its own port, so this directory won't exist.
+# ---------------------------------------------------------------------------
+_frontend_dist = Path(__file__).parent.parent / "frontend_dist"
+if _frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=_frontend_dist, html=True), name="frontend")
