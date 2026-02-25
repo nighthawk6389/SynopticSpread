@@ -9,6 +9,16 @@ Track divergence between global NWP models (GFS, NAM, ECMWF) in near-real-time. 
 - **Storage**: PostgreSQL (metrics), Zarr files (2D divergence grids)
 - **Data sources**: NOAA NOMADS (GFS/NAM via herbie), ECMWF Open Data (via cdsapi)
 
+## Deploy to Render
+
+`render.yaml` in the repo root is a [Render Blueprint](https://render.com/docs/blueprint-spec). Click **New Blueprint** in the Render dashboard, point it at this repo, and Render provisions the web service, PostgreSQL database, and persistent disk automatically.
+
+> The web service requires at least the Starter plan ($7/mo). The free PostgreSQL tier has a 90-day limit — upgrade to Basic ($7/mo) for production.
+
+Set `ECMWF_API_KEY` in the Render environment panel if you want ECMWF ingestion; leave it empty to skip.
+
+In production, a single Docker container (root `Dockerfile`) runs uvicorn and serves both the API and the compiled frontend — no separate nginx needed.
+
 ## Quickstart (Docker)
 
 ```bash
@@ -24,17 +34,18 @@ docker compose up --build
 | Backend API | http://localhost:8000 |
 | API docs | http://localhost:8000/docs |
 
+`docker-compose.yml` is for local development only (three separate containers). The root `Dockerfile` is the production image.
+
 ## Local Development
 
 ### Backend
 
 ```bash
 cd backend
-pip install -e ".[dev]"
-cp ../.env.example .env   # edit as needed
+pip install -e ".[dev]" aiosqlite scipy   # aiosqlite + scipy required for tests
+cp ../.env.example .env                   # edit as needed
 
-# Start PostgreSQL first
-docker compose up db -d
+docker compose up db -d   # start PostgreSQL
 
 alembic upgrade head
 uvicorn app.main:app --reload
@@ -42,24 +53,36 @@ uvicorn app.main:app --reload
 
 Set `SCHEDULER_ENABLED=false` in `.env` to run the API without triggering ingestion jobs.
 
+```bash
+SCHEDULER_ENABLED=false pytest   # run tests
+ruff check .                     # lint
+```
+
 ### Frontend
 
 ```bash
 cd frontend
 npm install
-npm run dev   # proxies /api to http://localhost:8000
+npm run dev        # dev server on :5173, proxies /api → http://localhost:8000
+npm run lint
+
+# E2E tests (Playwright — starts dev server automatically)
+npx playwright install --with-deps chromium   # first time only
+npx playwright test
 ```
 
 ## Environment Variables
 
 Copy `.env.example` to `backend/.env`:
 
-| Variable | Description |
-|---|---|
-| `DATABASE_URL` | asyncpg connection string |
-| `ECMWF_API_KEY` | Required for ECMWF ingestion — get from [Copernicus CDS](https://cds.climate.copernicus.eu) |
-| `DATA_STORE_PATH` | Directory where Zarr divergence grids are written |
-| `SCHEDULER_ENABLED` | Set to `false` for API-only mode |
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | local postgres | asyncpg connection string |
+| `ECMWF_API_KEY` | — | Required for ECMWF ingestion — get from [Copernicus CDS](https://cds.climate.copernicus.eu) |
+| `DATA_STORE_PATH` | `./data` | Directory where Zarr divergence grids are written |
+| `SCHEDULER_ENABLED` | `true` | Set to `false` for API-only / test mode |
+| `DATABASE_AUTO_CREATE` | `false` | Create ORM tables on startup without Alembic (used by Render) |
+| `ALLOWED_ORIGINS` | `["http://localhost:5173"]` | CORS allowed origins (JSON list) |
 
 ## API Endpoints
 

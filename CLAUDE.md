@@ -7,20 +7,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Backend (run from `backend/`)
 
 ```bash
-# Install dependencies
-pip install -e ".[dev]"
+# Install dependencies (add aiosqlite and scipy for the full test suite)
+pip install -e ".[dev]" aiosqlite scipy
 
 # Run dev server
 uvicorn app.main:app --reload
 
-# Run all tests
-pytest
+# Run all tests (disable scheduler to avoid side-effects)
+SCHEDULER_ENABLED=false pytest
 
 # Run a single test file
-pytest tests/test_metrics.py
+SCHEDULER_ENABLED=false pytest tests/test_metrics.py
 
 # Run a single test
-pytest tests/test_metrics.py::test_pairwise_metrics
+SCHEDULER_ENABLED=false pytest tests/test_metrics.py::test_pairwise_metrics
 
 # Lint
 ruff check .
@@ -40,15 +40,44 @@ npm install
 npm run dev       # dev server on :5173
 npm run build     # production build
 npm run lint
+
+# E2E tests (Playwright – starts dev server automatically)
+npx playwright install --with-deps chromium   # first time only
+npx playwright test
+npx playwright test e2e/dashboard.spec.ts     # single file
 ```
 
 ### Docker (from repo root)
 
 ```bash
-docker compose up --build         # start all services
+# Local dev stack (three separate containers + nginx)
+docker compose up --build
 docker compose up db              # just the database
 docker compose logs -f backend
+
+# Production image (single container – FastAPI serves bundled frontend)
+docker build -t synopticspread .
+docker run -p 8000:8000 --env-file backend/.env synopticspread
 ```
+
+## Deployment
+
+### Render (one-click)
+
+`render.yaml` at the repo root is a Render Blueprint. In the Render dashboard select **New Blueprint**, point it at the repo, and Render provisions:
+- A web service using the root `Dockerfile` (Starter plan minimum, $7/mo)
+- A managed PostgreSQL database (free tier, 90-day limit)
+- A 20 GB persistent disk mounted at `/data` for Zarr files
+
+Set `ECMWF_API_KEY` in the Render environment panel if ECMWF ingestion is needed.
+
+### Production Docker image
+
+The root `Dockerfile` is a two-stage build:
+1. **Node 22**: builds the Vite frontend → `/app/dist`
+2. **Python 3.12-slim**: installs the backend, copies `dist` into `frontend_dist/`, runs uvicorn
+
+FastAPI detects `frontend_dist/` at startup and mounts it as static files, so the single container serves both the API and the SPA. `docker-compose.yml` is for **local development only** (three separate containers).
 
 ## Architecture
 
@@ -110,12 +139,8 @@ Configured in `backend/.env` (copy from `.env.example`):
 | Variable | Default | Notes |
 |---|---|---|
 | `DATABASE_URL` | postgres on localhost | Use `postgresql+asyncpg://` scheme |
-| `ECMWF_API_KEY` | — | Required for ECMWF ingestion |
+| `ECMWF_API_KEY` | — | Required for ECMWF ingestion; leave empty to skip |
 | `DATA_STORE_PATH` | `./data` | Where Zarr divergence grids are written |
-| `SCHEDULER_ENABLED` | `true` | Set to `false` for API-only mode |
-
-Frontend env (set in Vercel or `.env.local`):
-
-| Variable | Default | Notes |
-|---|---|---|
-| `VITE_API_URL` | `/api` | Full URL to backend `/api` prefix for non-proxied deploys |
+| `SCHEDULER_ENABLED` | `true` | Set to `false` for API-only / test mode |
+| `DATABASE_AUTO_CREATE` | `false` | Creates ORM tables on startup without Alembic (used in prod/Render) |
+| `ALLOWED_ORIGINS` | `["http://localhost:5173"]` | CORS allowed origins (JSON list or comma-separated) |
