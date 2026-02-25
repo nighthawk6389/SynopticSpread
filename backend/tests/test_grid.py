@@ -1,6 +1,7 @@
 """Tests for grid-level divergence computation."""
 
 import numpy as np
+import pytest
 import xarray as xr
 
 from app.services.processing.grid import compute_grid_divergence, regrid_to_common
@@ -41,8 +42,5 @@ def test_compute_grid_divergence():
 
 def test_divergence_requires_two_models():
     datasets = {"GFS": _make_grid_dataset("precip", 10.0)}
-    try:
+    with pytest.raises(ValueError):
         compute_grid_divergence(datasets, "precip")
-        assert False, "Should have raised ValueError"
-    except ValueError:
-        pass
