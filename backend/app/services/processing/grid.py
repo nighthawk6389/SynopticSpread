@@ -5,7 +5,6 @@ from pathlib import Path
 
 import numpy as np
 import xarray as xr
-import zarr
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +14,8 @@ def regrid_to_common(
     variable: str,
     resolution: float = 0.25,
 ) -> dict[str, xr.DataArray]:
-    """Regrid all model fields to a common lat/lon grid via nearest-neighbor interpolation.
+    """Regrid all model fields to a common lat/lon grid via
+    nearest-neighbor interpolation.
 
     Uses the intersection of all model bounding boxes at the given resolution.
     """

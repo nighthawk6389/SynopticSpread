@@ -1,6 +1,7 @@
 """Tests for grid-level divergence computation."""
 
 import numpy as np
+import pytest
 import xarray as xr
 
 from app.services.processing.grid import compute_grid_divergence, regrid_to_common
@@ -11,7 +12,9 @@ def _make_grid_dataset(variable: str, value: float, offset: float = 0.0) -> xr.D
     lat = np.arange(35.0, 45.0, 0.25)
     lon = np.arange(-80.0, -70.0, 0.25)
     data = np.full((len(lat), len(lon)), value) + offset
-    da = xr.DataArray(data, coords={"latitude": lat, "longitude": lon}, dims=["latitude", "longitude"])
+    da = xr.DataArray(
+        data, coords={"latitude": lat, "longitude": lon}, dims=["latitude", "longitude"]
+    )
     return xr.Dataset({variable: da})
 
 
@@ -41,8 +44,5 @@ def test_compute_grid_divergence():
 
 def test_divergence_requires_two_models():
     datasets = {"GFS": _make_grid_dataset("precip", 10.0)}
-    try:
+    with pytest.raises(ValueError):
         compute_grid_divergence(datasets, "precip")
-        assert False, "Should have raised ValueError"
-    except ValueError:
-        pass

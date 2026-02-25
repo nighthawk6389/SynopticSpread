@@ -1,0 +1,67 @@
+# Render Blueprint – deploys the full SynopticSpread stack as a single service.
+#
+# Architecture
+# ────────────
+#   web service  →  multi-stage Docker build (Node builds frontend,
+#                   Python serves API + static assets)
+#   postgres     →  managed Render PostgreSQL
+#   disk         →  persistent volume for Zarr grid-divergence files
+#
+# Usage
+# ─────
+#   1. Push this repo to GitHub.
+#   2. In the Render dashboard → "New Blueprint" → point at your repo.
+#      Render reads this file and provisions everything automatically.
+#   3. Set ECMWF_API_KEY in the Render environment panel if you want ECMWF
+#      ingestion (leave empty to skip it).
+#
+# Plan notes
+# ──────────
+#   • The web service requires at least the "Starter" plan ($7/mo) because
+#     the Docker image exceeds the free-tier memory limit.
+#   • Persistent disks are only available on paid plans.
+#   • The database can use the free plan for prototyping (90-day limit);
+#     upgrade to "Basic" ($7/mo) for production use.
+
+services:
+  - type: web
+    name: synopticspread
+    env: docker
+    # Build context is the repo root; the Dockerfile is also at the root.
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter          # minimum plan that supports the image size
+    healthCheckPath: /api/health
+
+    disk:
+      name: model-data
+      mountPath: /data     # matches DATA_STORE_PATH below
+      sizeGB: 20
+
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: synopticspread-db
+          property: connectionString
+
+      # On first boot, create all ORM tables automatically.
+      - key: DATABASE_AUTO_CREATE
+        value: "true"
+
+      # Directory where Zarr grid files are written (mounted disk above).
+      - key: DATA_STORE_PATH
+        value: /data
+
+      # Enable the background ingestion scheduler.
+      - key: SCHEDULER_ENABLED
+        value: "true"
+
+      # Optional – leave empty to skip ECMWF ingestion.
+      - key: ECMWF_API_KEY
+        value: ""
+
+databases:
+  - name: synopticspread-db
+    databaseName: synopticspread
+    user: synoptic
+    plan: free             # upgrade to "basic" for production workloads
