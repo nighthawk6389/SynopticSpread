@@ -42,20 +42,24 @@ docker compose up --build
 
 ```bash
 cd backend
-pip install -e ".[dev]" aiosqlite scipy   # aiosqlite + scipy required for tests
-cp ../.env.example .env                   # edit as needed
+uv pip install -e ".[dev]" aiosqlite scipy   # aiosqlite + scipy required for tests
+cp ../.env.example .env                      # edit as needed
 
-docker compose up db -d   # start PostgreSQL
+# Option A: start PostgreSQL via Docker
+docker compose up db -d
 
-alembic upgrade head
-uvicorn app.main:app --reload
+# Option B: use a local PostgreSQL install (no Docker required)
+# sudo apt-get install postgresql && sudo service postgresql start
+
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
 ```
 
 Set `SCHEDULER_ENABLED=false` in `.env` to run the API without triggering ingestion jobs.
 
 ```bash
-SCHEDULER_ENABLED=false pytest   # run tests
-ruff check .                     # lint
+SCHEDULER_ENABLED=false uv run pytest   # run tests
+uv run ruff check .                     # lint
 ```
 
 ### Frontend
@@ -95,6 +99,27 @@ Copy `.env.example` to `backend/.env`:
 | GET | `/api/divergence/grid` | 2D divergence grid for a variable + lead hour |
 | GET | `/api/divergence/grid/snapshots` | List available grid snapshots |
 | GET | `/api/divergence/summary` | Latest spread summary per variable |
+
+### Admin Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/admin/status` | Counts of runs, metrics, snapshots, and zarr files |
+| POST | `/api/admin/trigger` | Queue ingestion for a model (`{"model":"GFS","init_time":"..."}`) |
+| DELETE | `/api/admin/runs` | Delete all ModelRun records |
+| DELETE | `/api/admin/metrics` | Delete all PointMetric records |
+| DELETE | `/api/admin/snapshots` | Delete GridSnapshot records + zarr files on disk |
+| DELETE | `/api/admin/cache` | Delete cached herbie GRIB subset files |
+| DELETE | `/api/admin/reset` | Full reset — all DB records, zarr files, and GRIB cache |
+
+Use `scripts/admin.sh` to call these from the command line without writing curl commands:
+
+```bash
+./scripts/admin.sh status
+./scripts/admin.sh trigger GFS --time 2026-02-25T18:00:00
+./scripts/admin.sh clear runs
+./scripts/admin.sh reset
+```
 
 ## Scheduler
 

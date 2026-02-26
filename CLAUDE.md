@@ -7,30 +7,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Backend (run from `backend/`)
 
 ```bash
-# Install dependencies (add aiosqlite and scipy for the full test suite)
-pip install -e ".[dev]" aiosqlite scipy
+# Install dependencies (aiosqlite + scipy required for tests)
+uv pip install -e ".[dev]" aiosqlite scipy
 
 # Run dev server
-uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 
 # Run all tests (disable scheduler to avoid side-effects)
-SCHEDULER_ENABLED=false pytest
+SCHEDULER_ENABLED=false uv run pytest
 
 # Run a single test file
-SCHEDULER_ENABLED=false pytest tests/test_metrics.py
+SCHEDULER_ENABLED=false uv run pytest tests/test_metrics.py
 
 # Run a single test
-SCHEDULER_ENABLED=false pytest tests/test_metrics.py::test_pairwise_metrics
+SCHEDULER_ENABLED=false uv run pytest tests/test_metrics.py::test_pairwise_metrics
 
-# Lint
-ruff check .
-
-# Format
-ruff format .
+# Lint / format
+uv run ruff check .
+uv run ruff format .
 
 # Database migrations
-alembic revision --autogenerate -m "description"
-alembic upgrade head
+uv run alembic revision --autogenerate -m "description"
+uv run alembic upgrade head
 ```
 
 ### Frontend (run from `frontend/`)
@@ -46,6 +44,24 @@ npx playwright install --with-deps chromium   # first time only
 npx playwright test
 npx playwright test e2e/dashboard.spec.ts     # single file
 ```
+
+### Admin CLI (from repo root)
+
+```bash
+# Shortcut wrapper — works from any directory
+./scripts/admin.sh status                          # counts + recent runs
+./scripts/admin.sh trigger GFS                     # queue latest GFS cycle
+./scripts/admin.sh trigger GFS --time 2026-02-25T18:00:00  # specific cycle
+./scripts/admin.sh trigger NAM
+./scripts/admin.sh trigger ECMWF
+./scripts/admin.sh clear runs                      # delete ModelRun records
+./scripts/admin.sh clear metrics                   # delete PointMetric records
+./scripts/admin.sh clear snapshots                 # delete GridSnapshot + zarr files
+./scripts/admin.sh clear cache                     # delete herbie subset_*.grib2 files
+./scripts/admin.sh reset                           # full reset (prompts for confirmation)
+```
+
+Override the API base URL with `SYNOPTIC_API_URL=http://host:port/api/admin ./scripts/admin.sh ...`
 
 ### Docker (from repo root)
 
@@ -103,6 +119,7 @@ backend/app/
   routers/
     forecasts.py      — GET /api/variables, GET /api/runs
     divergence.py     — GET /api/divergence/point|grid|grid/snapshots|summary
+    admin.py          — GET /api/admin/status, POST /trigger, DELETE /runs|metrics|snapshots|cache|reset
   services/
     ingestion/
       base.py         — ModelFetcher ABC; canonical variable names (precip, wind_speed, mslp, hgt_500)
@@ -119,8 +136,10 @@ backend/app/
 ### Key contracts
 
 - All fetchers return `dict[int, xr.Dataset]` where keys are lead hours and each Dataset uses `latitude`/`longitude` as coordinate names with canonical variable names.
+- GFS uses a regular 1D lat/lon grid. NAM CONUSNEST uses Lambert Conformal projection with 2D `(y, x)` `latitude`/`longitude` auxiliary coordinates. Both `extract_point` (metrics.py) and `regrid_to_common` (grid.py) handle both coordinate dimensionalities — check `lat_coord.ndim` before choosing code path.
 - Grid divergence is per-grid-cell std-dev (ddof=1) across all available models, regridded to a common 0.25° grid.
 - The scheduler is idempotent: it checks for an existing `ModelRun` row before fetching.
+- Herbie requires timezone-naive datetimes; always call `init_time.replace(tzinfo=None)` before passing to `Herbie()`.
 
 ### Frontend
 
