@@ -53,3 +53,18 @@ class DivergenceSummary(BaseModel):
     num_points: int
     models_compared: list[str]
     init_time: str
+
+
+class ModelPointValueOut(BaseModel):
+    """Raw predicted value from a single model at a single monitor point."""
+
+    run_id: uuid.UUID
+    model_name: str
+    variable: str
+    lat: float
+    lon: float
+    lead_hour: int
+    value: float
+    init_time: datetime
+
+    model_config = {"from_attributes": True}

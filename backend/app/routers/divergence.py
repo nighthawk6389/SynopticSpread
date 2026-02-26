@@ -5,11 +5,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import GridSnapshot, ModelRun, PointMetric
+from app.models import GridSnapshot, ModelPointValue, ModelRun, PointMetric
 from app.schemas.divergence import (
     DivergenceSummary,
     GridDivergenceData,
     GridSnapshotOut,
+    ModelPointValueOut,
     PointMetricOut,
 )
 from app.services.processing.grid import load_divergence_zarr
@@ -176,6 +177,81 @@ async def get_regional_divergence(
             "bias": metric.bias if metric else None,
         })
     return results
+
+
+@router.get("/model-values", response_model=list[ModelPointValueOut])
+async def get_model_values(
+    lat: float = Query(...),
+    lon: float = Query(...),
+    lead_hour: int = Query(...),
+    variable: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the latest raw predicted value from each model at a monitor point.
+
+    Joins model_point_values → model_runs to include model_name and init_time.
+    Filters to the most recent init_time available for each model.
+    """
+    from sqlalchemy import func
+
+    # Subquery: latest init_time per model at this location
+    latest_subq = (
+        select(
+            ModelRun.model_name,
+            func.max(ModelRun.init_time).label("latest_init"),
+        )
+        .join(ModelPointValue, ModelPointValue.run_id == ModelRun.id)
+        .where(
+            ModelPointValue.lat.between(lat - 0.5, lat + 0.5),
+            ModelPointValue.lon.between(lon - 0.5, lon + 0.5),
+            ModelPointValue.lead_hour == lead_hour,
+        )
+        .group_by(ModelRun.model_name)
+        .subquery()
+    )
+
+    stmt = (
+        select(
+            ModelPointValue.run_id,
+            ModelRun.model_name,
+            ModelPointValue.variable,
+            ModelPointValue.lat,
+            ModelPointValue.lon,
+            ModelPointValue.lead_hour,
+            ModelPointValue.value,
+            ModelRun.init_time,
+        )
+        .join(ModelRun, ModelPointValue.run_id == ModelRun.id)
+        .join(
+            latest_subq,
+            (ModelRun.model_name == latest_subq.c.model_name)
+            & (ModelRun.init_time == latest_subq.c.latest_init),
+        )
+        .where(
+            ModelPointValue.lat.between(lat - 0.5, lat + 0.5),
+            ModelPointValue.lon.between(lon - 0.5, lon + 0.5),
+            ModelPointValue.lead_hour == lead_hour,
+        )
+    )
+    if variable:
+        stmt = stmt.where(ModelPointValue.variable == variable)
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    return [
+        ModelPointValueOut(
+            run_id=row.run_id,
+            model_name=row.model_name,
+            variable=row.variable,
+            lat=row.lat,
+            lon=row.lon,
+            lead_hour=row.lead_hour,
+            value=row.value,
+            init_time=row.init_time,
+        )
+        for row in rows
+    ]
 
 
 @router.get("/decomposition")

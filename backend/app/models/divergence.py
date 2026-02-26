@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -28,6 +28,33 @@ class PointMetric(Base):
     rmse: Mapped[float] = mapped_column(Float)
     bias: Mapped[float] = mapped_column(Float)
     spread: Mapped[float] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class ModelPointValue(Base):
+    """Stores the raw predicted value of a single model at a single monitor point."""
+
+    __tablename__ = "model_point_values"
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id", "variable", "lat", "lon", "lead_hour",
+            name="uq_mpv_run_var_loc_fhr",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("model_runs.id"), index=True
+    )
+    variable: Mapped[str] = mapped_column(String(32), index=True)
+    lat: Mapped[float] = mapped_column(Float)
+    lon: Mapped[float] = mapped_column(Float)
+    lead_hour: Mapped[int] = mapped_column(Integer, index=True)
+    value: Mapped[float] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

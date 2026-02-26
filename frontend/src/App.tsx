@@ -2,10 +2,12 @@ import { NavLink, Route, Routes } from 'react-router-dom'
 import AlertsPage from './pages/AlertsPage'
 import DashboardPage from './pages/DashboardPage'
 import MapPage from './pages/MapPage'
+import OutlookPage from './pages/OutlookPage'
 import TimeSeriesPage from './pages/TimeSeriesPage'
 
 const navLinks = [
   { to: '/', label: 'Dashboard' },
+  { to: '/outlook', label: 'Forecast Outlook' },
   { to: '/map', label: 'Divergence Map' },
   { to: '/timeseries', label: 'Time Series' },
   { to: '/alerts', label: 'Alerts' },
@@ -41,6 +43,7 @@ export default function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/map" element={<MapPage />} />
           <Route path="/timeseries" element={<TimeSeriesPage />} />
+          <Route path="/outlook" element={<OutlookPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
         </Routes>
       </main>

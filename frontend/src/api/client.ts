@@ -203,6 +203,36 @@ export function useAlertEvents(limit = 50) {
   })
 }
 
+// Model point values (Forecast Outlook)
+
+export interface ModelPointValue {
+  run_id: string
+  model_name: string
+  variable: string
+  lat: number
+  lon: number
+  lead_hour: number
+  value: number
+  init_time: string
+}
+
+export function useModelValues(params: {
+  lat: number
+  lon: number
+  lead_hour: number
+  enabled?: boolean
+}) {
+  const { enabled = true, ...queryParams } = params
+  return useQuery({
+    queryKey: ['model-values', queryParams],
+    queryFn: () =>
+      api
+        .get<ModelPointValue[]>('/divergence/model-values', { params: queryParams })
+        .then(r => r.data),
+    enabled: enabled && !!queryParams.lat && !!queryParams.lon,
+  })
+}
+
 // Decomposition
 
 export interface PairMetric {
