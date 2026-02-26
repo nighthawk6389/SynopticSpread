@@ -109,6 +109,7 @@ async def get_divergence_summary(
             select(
                 func.avg(PointMetric.spread).label("mean_spread"),
                 func.max(PointMetric.spread).label("max_spread"),
+                func.min(PointMetric.spread).label("min_spread"),
                 func.count(PointMetric.id).label("num_points"),
             )
             .where(PointMetric.variable == var)
@@ -122,6 +123,7 @@ async def get_divergence_summary(
                     variable=var,
                     mean_spread=round(float(row.mean_spread or 0), 4),
                     max_spread=round(float(row.max_spread or 0), 4),
+                    min_spread=round(float(row.min_spread or 0), 4),
                     num_points=int(row.num_points),
                     models_compared=["GFS", "NAM", "ECMWF"],
                     init_time="latest",

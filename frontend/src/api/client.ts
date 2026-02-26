@@ -41,6 +41,7 @@ export interface DivergenceSummary {
   variable: string
   mean_spread: number
   max_spread: number
+  min_spread: number
   num_points: number
   models_compared: string[]
   init_time: string
@@ -53,6 +54,12 @@ export interface GridSnapshot {
   lead_hour: number
   bbox: Record<string, number>
   created_at: string
+}
+
+export interface MonitorPoint {
+  lat: number
+  lon: number
+  label: string
 }
 
 // Hooks
@@ -71,16 +78,26 @@ export function useVariables() {
   })
 }
 
+export function useMonitorPoints() {
+  return useQuery({
+    queryKey: ['monitor-points'],
+    queryFn: () => api.get<MonitorPoint[]>('/monitor-points').then(r => r.data),
+    staleTime: Infinity,
+  })
+}
+
 export function useDivergencePoint(params: {
   lat: number
   lon: number
   variable: string
   lead_hour?: number
+  enabled?: boolean
 }) {
+  const { enabled = true, ...queryParams } = params
   return useQuery({
-    queryKey: ['divergence-point', params],
-    queryFn: () => api.get<PointMetric[]>('/divergence/point', { params }).then(r => r.data),
-    enabled: !!params.lat && !!params.lon && !!params.variable,
+    queryKey: ['divergence-point', queryParams],
+    queryFn: () => api.get<PointMetric[]>('/divergence/point', { params: queryParams }).then(r => r.data),
+    enabled: enabled && !!queryParams.lat && !!queryParams.lon && !!queryParams.variable,
   })
 }
 
@@ -106,5 +123,13 @@ export function useGridSnapshots(variable?: string) {
     queryKey: ['grid-snapshots', variable],
     queryFn: () =>
       api.get<GridSnapshot[]>('/divergence/grid/snapshots', { params: { variable } }).then(r => r.data),
+  })
+}
+
+export function useRunMetrics(runId: string | null) {
+  return useQuery({
+    queryKey: ['run-metrics', runId],
+    queryFn: () => api.get<PointMetric[]>(`/runs/${runId}/metrics`).then(r => r.data),
+    enabled: !!runId,
   })
 }

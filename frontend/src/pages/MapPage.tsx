@@ -1,9 +1,9 @@
 import 'leaflet/dist/leaflet.css'
-import { useCallback, useMemo, useState } from 'react'
-import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet'
-import { useDivergenceGrid, useDivergencePoint } from '../api/client'
+import { useState } from 'react'
+import { MapContainer, TileLayer } from 'react-leaflet'
+import { useDivergenceGrid, useMonitorPoints } from '../api/client'
 import DivergenceOverlay from '../components/Map/DivergenceOverlay'
-import PointPopup from '../components/Map/PointPopup'
+import MonitorPointMarker from '../components/Map/MonitorPointMarker'
 
 const VARIABLES = [
   { value: 'precip', label: 'Precipitation' },
@@ -12,45 +12,22 @@ const VARIABLES = [
   { value: 'hgt_500', label: '500mb Heights' },
 ]
 
-function MapClickHandler({ onClick }: { onClick: (lat: number, lon: number) => void }) {
-  useMapEvents({
-    click(e) {
-      onClick(e.latlng.lat, e.latlng.lng)
-    },
-  })
-  return null
-}
+const LEAD_HOUR_INFO =
+  "Lead time is how many hours ahead of the model's initialization the forecast is valid. " +
+  '0h = analysis time; 24h = tomorrow; 120h = 5 days out. ' +
+  'Models typically diverge more at longer lead times as small atmospheric differences amplify.'
 
 export default function MapPage() {
   const [variable, setVariable] = useState('precip')
-  const [leadHour, setLeadHour] = useState(0)
-  const [selectedPoint, setSelectedPoint] = useState<{ lat: number; lon: number } | null>(null)
+  const [leadHour, setLeadHour] = useState(6)
 
   const { data: gridData, isLoading } = useDivergenceGrid({ variable, lead_hour: leadHour })
-  const { data: pointData } = useDivergencePoint({
-    lat: selectedPoint?.lat ?? 0,
-    lon: selectedPoint?.lon ?? 0,
-    variable,
-    lead_hour: leadHour,
-  })
-
-  const handleMapClick = useCallback((lat: number, lon: number) => {
-    setSelectedPoint({ lat, lon })
-  }, [])
-
-  const center = useMemo<[number, number]>(() => {
-    if (gridData?.bbox) {
-      return [
-        (gridData.bbox.min_lat + gridData.bbox.max_lat) / 2,
-        (gridData.bbox.min_lon + gridData.bbox.max_lon) / 2,
-      ]
-    }
-    return [39.8, -98.5] // center of CONUS
-  }, [gridData])
+  const { data: monitorPoints } = useMonitorPoints()
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-end gap-4">
+        {/* Variable selector */}
         <div>
           <label className="block text-xs text-gray-400 mb-1">Variable</label>
           <select
@@ -63,38 +40,74 @@ export default function MapPage() {
             ))}
           </select>
         </div>
+
+        {/* Lead hour slider with info tooltip */}
         <div>
-          <label className="block text-xs text-gray-400 mb-1">Lead Hour</label>
-          <input
-            type="range"
-            min={0}
-            max={120}
-            step={6}
-            value={leadHour}
-            onChange={e => setLeadHour(Number(e.target.value))}
-            className="w-48"
-          />
-          <span className="ml-2 text-sm text-gray-400">{leadHour}h</span>
+          <div className="flex items-center gap-1 mb-1">
+            <label className="text-xs text-gray-400">Lead Hour</label>
+            <span
+              className="relative group cursor-help"
+              title={LEAD_HOUR_INFO}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 9a1 1 0 112 0v5a1 1 0 11-2 0V9zm1-4a1 1 0 100 2 1 1 0 000-2z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              {/* Rich tooltip panel */}
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-50 hidden group-hover:block w-72 rounded bg-gray-700 text-gray-200 text-xs p-3 shadow-lg leading-relaxed pointer-events-none">
+                <p className="font-semibold text-white mb-1">What is a lead hour?</p>
+                {LEAD_HOUR_INFO}
+              </div>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min={0}
+              max={120}
+              step={6}
+              value={leadHour}
+              onChange={e => setLeadHour(Number(e.target.value))}
+              className="w-48"
+            />
+            <span className="text-sm text-gray-300 w-12">{leadHour}h</span>
+          </div>
         </div>
-        {isLoading && <span className="text-sm text-gray-500">Loading grid...</span>}
+
+        {isLoading && <span className="text-sm text-gray-500 self-center">Loading grid…</span>}
       </div>
 
       <div className="h-[600px] rounded-lg overflow-hidden border border-gray-700">
-        <MapContainer center={center} zoom={4} className="h-full w-full">
+        <MapContainer center={[39.8, -98.5]} zoom={4} className="h-full w-full">
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           />
-          <MapClickHandler onClick={handleMapClick} />
           {gridData && <DivergenceOverlay data={gridData} />}
-          {selectedPoint && pointData && (
-            <PointPopup lat={selectedPoint.lat} lon={selectedPoint.lon} metrics={pointData} />
-          )}
+          {monitorPoints?.map(pt => (
+            <MonitorPointMarker
+              key={`${pt.lat},${pt.lon}`}
+              lat={pt.lat}
+              lon={pt.lon}
+              label={pt.label}
+              variable={variable}
+              leadHour={leadHour}
+            />
+          ))}
         </MapContainer>
       </div>
 
       <p className="text-xs text-gray-500">
-        Click anywhere on the map to view point-level divergence metrics.
+        Click a blue pin to view point-level divergence metrics for that city.
+        Grid color: blue = low divergence, red = high divergence.
       </p>
     </div>
   )
