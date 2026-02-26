@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import type { ModelRun } from '../api/client'
+import type { ModelRun, MonitorPoint } from '../api/client'
 import { useDivergenceSummary, useMonitorPoints, useRuns } from '../api/client'
+import ClickTooltip from '../components/ClickTooltip'
 import RunDetailModal from '../components/RunDetailModal'
 
 // ─── variable metadata ────────────────────────────────────────────────────────
@@ -52,7 +53,6 @@ const VARIABLE_META: Record<string, VariableMeta> = {
   },
 }
 
-// Thresholds for red/yellow/green card coloring (based on mean_spread)
 const THRESHOLDS: Record<string, { warn: number; alert: number }> = {
   precip: { warn: 3, alert: 8 },
   wind_speed: { warn: 2, alert: 5 },
@@ -92,34 +92,24 @@ const LEVEL_LABEL: Record<SpreadLevel, string> = {
 
 function InfoTooltip({ meta }: { meta: VariableMeta }) {
   return (
-    <span className="relative group ml-1 cursor-help">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 20 20"
-        fill="currentColor"
-        className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300 inline"
-      >
-        <path
-          fillRule="evenodd"
-          d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 9a1 1 0 112 0v5a1 1 0 11-2 0V9zm1-4a1 1 0 100 2 1 1 0 000-2z"
-          clipRule="evenodd"
-        />
-      </svg>
-      <div className="absolute left-0 top-full mt-2 z-50 hidden group-hover:block w-72 rounded bg-gray-700 text-gray-200 text-xs p-3 shadow-xl leading-relaxed pointer-events-none">
-        <p className="font-semibold text-white mb-1">{meta.what}</p>
-        <p className="mb-2">{meta.impact}</p>
-        <p className="text-gray-400">{meta.thresholds}</p>
-      </div>
-    </span>
+    <ClickTooltip>
+      <p className="font-semibold text-white mb-1">{meta.what}</p>
+      <p className="mb-2">{meta.impact}</p>
+      <p className="text-gray-400">{meta.thresholds}</p>
+    </ClickTooltip>
   )
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { data: summaries, isLoading: summaryLoading } = useDivergenceSummary()
-  const { data: runs, isLoading: runsLoading } = useRuns()
   const { data: monitorPoints } = useMonitorPoints()
+  const [selectedLocation, setSelectedLocation] = useState<MonitorPoint | null>(null)
+
+  const { data: summaries, isLoading: summaryLoading } = useDivergenceSummary(
+    selectedLocation ? { lat: selectedLocation.lat, lon: selectedLocation.lon } : undefined,
+  )
+  const { data: runs, isLoading: runsLoading } = useRuns()
   const [selectedRun, setSelectedRun] = useState<ModelRun | null>(null)
 
   return (
@@ -127,15 +117,38 @@ export default function DashboardPage() {
       <div>
         <h2 className="text-2xl font-bold">Model Divergence Dashboard</h2>
         <p className="mt-1 text-sm text-gray-400">
-          Ensemble spread across GFS, NAM, and ECMWF — computed over{' '}
-          <span
-            className="underline decoration-dotted cursor-help"
-            title="Monitored locations are pre-configured cities (New York, Los Angeles, Chicago, Houston, Seattle, Denver, Miami, Washington DC). Each variable is sampled at every location for every available forecast lead time."
-          >
-            {monitorPoints?.length ?? 8} monitored locations
-          </span>
-          .
+          Ensemble spread across GFS, NAM, and ECMWF
+          {selectedLocation
+            ? <> — filtered to <span className="font-medium text-gray-300">{selectedLocation.label}</span></>
+            : <> — computed over {monitorPoints?.length ?? 8} monitored locations</>
+          }
         </p>
+      </div>
+
+      {/* Location filter */}
+      <div className="flex items-center gap-3">
+        <label className="text-xs text-gray-400">Location</label>
+        <select
+          value={selectedLocation ? `${selectedLocation.lat},${selectedLocation.lon}` : 'all'}
+          onChange={e => {
+            if (e.target.value === 'all') {
+              setSelectedLocation(null)
+            } else {
+              const pt = monitorPoints?.find(
+                p => `${p.lat},${p.lon}` === e.target.value,
+              )
+              if (pt) setSelectedLocation(pt)
+            }
+          }}
+          className="rounded bg-gray-800 border border-gray-700 px-3 py-1.5 text-sm"
+        >
+          <option value="all">All Locations</option>
+          {monitorPoints?.map(pt => (
+            <option key={pt.label} value={`${pt.lat},${pt.lon}`}>
+              {pt.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Summary Cards */}
@@ -154,7 +167,6 @@ export default function DashboardPage() {
                 key={s.variable}
                 className={`rounded-lg border p-5 transition-colors ${LEVEL_STYLES[level]}`}
               >
-                {/* Card header */}
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-medium text-gray-300 flex items-center">
                     {VARIABLE_LABELS[s.variable] ?? s.variable}
@@ -165,14 +177,12 @@ export default function DashboardPage() {
                   </span>
                 </div>
 
-                {/* Primary stat */}
                 <p className="mt-3 text-2xl font-bold text-white">
                   {s.mean_spread.toFixed(2)}
                   <span className="ml-1 text-sm font-normal text-gray-400">{unit}</span>
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">avg ensemble spread</p>
 
-                {/* Secondary stats */}
                 <div className="mt-3 grid grid-cols-3 gap-1 text-xs">
                   <div>
                     <p className="text-gray-500">Min</p>
@@ -189,14 +199,7 @@ export default function DashboardPage() {
                 </div>
 
                 <p className="mt-2 text-xs text-gray-600">
-                  {s.num_points}{' '}
-                  <span
-                    className="underline decoration-dotted cursor-help"
-                    title="Each point is one variable measurement at one monitored city for one forecast lead time."
-                  >
-                    data points
-                  </span>
-                  {' '}· {s.models_compared.join(', ')}
+                  {s.num_points} data points · {s.models_compared.join(', ')}
                 </p>
               </div>
             )
@@ -222,11 +225,25 @@ export default function DashboardPage() {
                 <th className="px-4 py-2 text-left font-medium text-gray-400">Init Time (UTC)</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-400">Status</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-400">
-                  <span
-                    className="underline decoration-dotted cursor-help"
-                    title="Lead hours for which this run has data. Each step is 6 hours apart."
-                  >
+                  <span className="inline-flex items-center">
                     Lead Hours
+                    <ClickTooltip>
+                      <p className="font-semibold text-white mb-1">What are lead hours?</p>
+                      <p className="mb-2">
+                        Lead time (forecast hour) measures how far into the future a forecast is
+                        valid, counted from the model's initialization time.
+                      </p>
+                      <p className="mb-2">
+                        <strong>0h</strong> = analysis (current conditions).{' '}
+                        <strong>6h</strong> = 6 hours from now.{' '}
+                        <strong>24h</strong> = tomorrow.{' '}
+                        <strong>120h</strong> = 5 days out.
+                      </p>
+                      <p className="text-gray-400">
+                        Models tend to diverge more at longer lead times as small
+                        differences in initial conditions amplify over time.
+                      </p>
+                    </ClickTooltip>
                   </span>
                 </th>
               </tr>
@@ -279,7 +296,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Run detail modal */}
       {selectedRun && (
         <RunDetailModal
           run={selectedRun}

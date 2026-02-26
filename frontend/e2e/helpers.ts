@@ -19,6 +19,7 @@ export const MOCK_SUMMARIES = [
     variable: 'precip',
     mean_spread: 1.23,
     max_spread: 4.56,
+    min_spread: 0.01,
     num_points: 10,
     models_compared: ['GFS', 'NAM', 'ECMWF'],
     init_time: 'latest',
@@ -27,6 +28,7 @@ export const MOCK_SUMMARIES = [
     variable: 'wind_speed',
     mean_spread: 0.87,
     max_spread: 2.34,
+    min_spread: 0.05,
     num_points: 8,
     models_compared: ['GFS', 'NAM', 'ECMWF'],
     init_time: 'latest',
@@ -110,6 +112,22 @@ export const MOCK_VARIABLES = {
   hgt_500: '500mb geopotential height',
 }
 
+export const MOCK_MONITOR_POINTS = [
+  { lat: 40.7128, lon: -74.006, label: 'New York' },
+  { lat: 34.0522, lon: -118.2437, label: 'Los Angeles' },
+  { lat: 41.8781, lon: -87.6298, label: 'Chicago' },
+  { lat: 29.7604, lon: -95.3698, label: 'Houston' },
+  { lat: 47.6062, lon: -122.3321, label: 'Seattle' },
+  { lat: 39.7392, lon: -104.9903, label: 'Denver' },
+  { lat: 25.7617, lon: -80.1918, label: 'Miami' },
+  { lat: 38.9072, lon: -77.0369, label: 'Washington DC' },
+]
+
+export const MOCK_REGIONAL = [
+  { lat: 40.7128, lon: -74.006, label: 'New York', spread: 2.5, rmse: 1.8, bias: 0.3 },
+  { lat: 34.0522, lon: -118.2437, label: 'Los Angeles', spread: 1.2, rmse: 0.9, bias: -0.1 },
+]
+
 // ---------------------------------------------------------------------------
 // Route setup helper
 // ---------------------------------------------------------------------------
@@ -143,7 +161,17 @@ export async function mockApiRoutes(page: Page, overrides: RouteOverrides = {}) 
     route.fulfill({ json: MOCK_VARIABLES }),
   )
 
-  // Model runs  (register before divergence routes to avoid prefix conflicts)
+  // Monitor points (must be before /api/runs catch-all)
+  await page.route(/\/api\/monitor-points/, route =>
+    route.fulfill({ json: MOCK_MONITOR_POINTS }),
+  )
+
+  // Model run metrics (specific — must be before /api/runs catch-all)
+  await page.route(/\/api\/runs\/[^/]+\/metrics/, route =>
+    route.fulfill({ json: pointMetrics }),
+  )
+
+  // Model runs
   await page.route(/\/api\/runs/, route =>
     route.fulfill({ json: runs }),
   )
@@ -151,6 +179,11 @@ export async function mockApiRoutes(page: Page, overrides: RouteOverrides = {}) 
   // Divergence summary
   await page.route(/\/api\/divergence\/summary/, route =>
     route.fulfill({ json: summaries }),
+  )
+
+  // Regional divergence
+  await page.route(/\/api\/divergence\/regional/, route =>
+    route.fulfill({ json: MOCK_REGIONAL }),
   )
 
   // Point-level divergence metrics

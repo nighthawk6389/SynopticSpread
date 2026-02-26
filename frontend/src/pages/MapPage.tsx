@@ -1,9 +1,11 @@
 import 'leaflet/dist/leaflet.css'
 import { useState } from 'react'
 import { MapContainer, TileLayer } from 'react-leaflet'
-import { useDivergenceGrid, useMonitorPoints } from '../api/client'
+import { useDivergenceGrid, useMonitorPoints, useRegionalDivergence } from '../api/client'
+import ClickTooltip from '../components/ClickTooltip'
 import DivergenceOverlay from '../components/Map/DivergenceOverlay'
 import MonitorPointMarker from '../components/Map/MonitorPointMarker'
+import RegionalOverlay from '../components/Map/RegionalOverlay'
 
 const VARIABLES = [
   { value: 'precip', label: 'Precipitation' },
@@ -20,9 +22,12 @@ const LEAD_HOUR_INFO =
 export default function MapPage() {
   const [variable, setVariable] = useState('precip')
   const [leadHour, setLeadHour] = useState(6)
+  const [overlayMode, setOverlayMode] = useState<'grid' | 'regions'>('grid')
+  const [colorBy, setColorBy] = useState<'spread' | 'rmse' | 'bias'>('spread')
 
   const { data: gridData, isLoading } = useDivergenceGrid({ variable, lead_hour: leadHour })
   const { data: monitorPoints } = useMonitorPoints()
+  const { data: regionalData } = useRegionalDivergence({ variable, lead_hour: leadHour })
 
   return (
     <div className="space-y-4">
@@ -45,28 +50,14 @@ export default function MapPage() {
         <div>
           <div className="flex items-center gap-1 mb-1">
             <label className="text-xs text-gray-400">Lead Hour</label>
-            <span
-              className="relative group cursor-help"
-              title={LEAD_HOUR_INFO}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 9a1 1 0 112 0v5a1 1 0 11-2 0V9zm1-4a1 1 0 100 2 1 1 0 000-2z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              {/* Rich tooltip panel */}
-              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-50 hidden group-hover:block w-72 rounded bg-gray-700 text-gray-200 text-xs p-3 shadow-lg leading-relaxed pointer-events-none">
-                <p className="font-semibold text-white mb-1">What is a lead hour?</p>
-                {LEAD_HOUR_INFO}
-              </div>
-            </span>
+            <ClickTooltip>
+              <p className="font-semibold text-white mb-1">What is a lead hour?</p>
+              <p className="mb-2">{LEAD_HOUR_INFO}</p>
+              <p className="text-gray-400">
+                <strong>0h</strong> = now, <strong>6h</strong> = 6 hours out,{' '}
+                <strong>24h</strong> = tomorrow, <strong>120h</strong> = 5 days.
+              </p>
+            </ClickTooltip>
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -82,6 +73,35 @@ export default function MapPage() {
           </div>
         </div>
 
+        {/* Overlay mode */}
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Overlay</label>
+          <select
+            value={overlayMode}
+            onChange={e => setOverlayMode(e.target.value as 'grid' | 'regions')}
+            className="rounded bg-gray-800 border border-gray-700 px-3 py-1.5 text-sm"
+          >
+            <option value="grid">Grid Cells</option>
+            <option value="regions">Regions</option>
+          </select>
+        </div>
+
+        {/* Color-by selector (regions mode only) */}
+        {overlayMode === 'regions' && (
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Color by</label>
+            <select
+              value={colorBy}
+              onChange={e => setColorBy(e.target.value as 'spread' | 'rmse' | 'bias')}
+              className="rounded bg-gray-800 border border-gray-700 px-3 py-1.5 text-sm"
+            >
+              <option value="spread">Spread</option>
+              <option value="rmse">RMSE</option>
+              <option value="bias">Bias</option>
+            </select>
+          </div>
+        )}
+
         {isLoading && <span className="text-sm text-gray-500 self-center">Loading grid…</span>}
       </div>
 
@@ -91,7 +111,10 @@ export default function MapPage() {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           />
-          {gridData && <DivergenceOverlay data={gridData} />}
+          {overlayMode === 'grid' && gridData && <DivergenceOverlay data={gridData} />}
+          {overlayMode === 'regions' && regionalData && (
+            <RegionalOverlay data={regionalData} metric={colorBy} />
+          )}
           {monitorPoints?.map(pt => (
             <MonitorPointMarker
               key={`${pt.lat},${pt.lon}`}
@@ -107,7 +130,7 @@ export default function MapPage() {
 
       <p className="text-xs text-gray-500">
         Click a blue pin to view point-level divergence metrics for that city.
-        Grid color: blue = low divergence, red = high divergence.
+        Color: green = low divergence, red = high divergence.
       </p>
     </div>
   )

@@ -58,10 +58,10 @@ test('location dropdown is visible', async ({ page }) => {
   await expect(page.locator('label', { hasText: 'Location' })).toBeVisible()
 })
 
-test('location dropdown contains all six preset cities', async ({ page }) => {
+test('location dropdown contains all eight preset cities', async ({ page }) => {
   await page.goto('/timeseries')
   const locationSelect = page.locator('select').nth(1)
-  for (const city of ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Seattle', 'Denver']) {
+  for (const city of ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Seattle', 'Denver', 'Miami', 'Washington DC']) {
     await expect(locationSelect.locator(`option >> text="${city}"`)).toBeAttached()
   }
 })

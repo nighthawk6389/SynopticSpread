@@ -96,9 +96,14 @@ async def list_grid_snapshots(
 
 @router.get("/summary", response_model=list[DivergenceSummary])
 async def get_divergence_summary(
+    lat: float | None = Query(None),
+    lon: float | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return latest divergence summary per variable for the dashboard."""
+    """Return latest divergence summary per variable for the dashboard.
+
+    Optionally filter by location (lat/lon) to get city-specific stats.
+    """
     from sqlalchemy import func
 
     variables = ["precip", "wind_speed", "mslp", "hgt_500"]
@@ -114,6 +119,11 @@ async def get_divergence_summary(
             )
             .where(PointMetric.variable == var)
         )
+        if lat is not None and lon is not None:
+            stmt = stmt.where(
+                PointMetric.lat.between(lat - 0.5, lat + 0.5),
+                PointMetric.lon.between(lon - 0.5, lon + 0.5),
+            )
         result = await db.execute(stmt)
         row = result.one_or_none()
 
@@ -131,3 +141,38 @@ async def get_divergence_summary(
             )
 
     return summaries
+
+
+@router.get("/regional")
+async def get_regional_divergence(
+    variable: str = Query(...),
+    lead_hour: int = Query(0),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return latest spread/rmse/bias at each monitor point for regional map coloring."""
+    from app.config import settings
+
+    results = []
+    for lat, lon, label in settings.monitor_points:
+        stmt = (
+            select(PointMetric)
+            .where(
+                PointMetric.variable == variable,
+                PointMetric.lat.between(lat - 0.5, lat + 0.5),
+                PointMetric.lon.between(lon - 0.5, lon + 0.5),
+                PointMetric.lead_hour == lead_hour,
+            )
+            .order_by(PointMetric.created_at.desc())
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        metric = result.scalar_one_or_none()
+        results.append({
+            "lat": lat,
+            "lon": lon,
+            "label": label,
+            "spread": metric.spread if metric else None,
+            "rmse": metric.rmse if metric else None,
+            "bias": metric.bias if metric else None,
+        })
+    return results

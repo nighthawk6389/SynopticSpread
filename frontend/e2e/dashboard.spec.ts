@@ -27,18 +27,18 @@ test.describe('Dashboard – empty state', () => {
 
   test('shows the subtitle', async ({ page }) => {
     await expect(
-      page.getByText('Overview of forecast divergence across GFS, NAM, and ECMWF'),
+      page.getByText('Ensemble spread across GFS, NAM, and ECMWF'),
     ).toBeVisible()
   })
 
   test('shows the no-data message for divergence cards', async ({ page }) => {
     await expect(
-      page.getByText('No divergence data yet. Waiting for model ingestion to complete.'),
+      page.getByText('No divergence data yet. Trigger a model run from the admin panel.'),
     ).toBeVisible()
   })
 
   test('shows the no-data row in the model runs table', async ({ page }) => {
-    await expect(page.getByText('No model runs ingested yet.')).toBeVisible()
+    await expect(page.getByText('No model runs yet.')).toBeVisible()
   })
 
   test('model runs table headers are still rendered', async ({ page }) => {
@@ -60,25 +60,30 @@ test.describe('Dashboard – summary cards', () => {
   })
 
   test('renders a card for each variable in the API response', async ({ page }) => {
-    // Mock returns precip + wind_speed
     await expect(page.getByText('Precipitation')).toBeVisible()
     await expect(page.getByText('Wind Speed')).toBeVisible()
   })
 
   test('shows the mean spread value on the card', async ({ page }) => {
-    // precip mean_spread = 1.23, formatted as "1.23"
-    await expect(page.getByText(/1\.23/)).toBeVisible()
+    // precip mean_spread = 1.23
+    await expect(page.getByText(/1\.23/).first()).toBeVisible()
   })
 
   test('shows the unit label (mm avg spread)', async ({ page }) => {
-    await expect(page.getByText(/mm avg spread/)).toBeVisible()
+    await expect(page.getByText(/mm/).first()).toBeVisible()
+    await expect(page.getByText(/avg ensemble spread/).first()).toBeVisible()
   })
 
-  test('shows max spread and number of points', async ({ page }) => {
+  test('shows min, avg, and max spread', async ({ page }) => {
     const precip = MOCK_SUMMARIES[0]
-    // "Max: 4.56 | 10 points"
-    await expect(page.getByText(new RegExp(`Max: ${precip.max_spread.toFixed(2)}`))).toBeVisible()
-    await expect(page.getByText(new RegExp(`${precip.num_points} points`))).toBeVisible()
+    await expect(page.getByText('Min').first()).toBeVisible()
+    await expect(page.getByText('Max').first()).toBeVisible()
+    await expect(page.getByText(precip.max_spread.toFixed(2))).toBeVisible()
+  })
+
+  test('shows number of data points', async ({ page }) => {
+    const precip = MOCK_SUMMARIES[0]
+    await expect(page.getByText(new RegExp(`${precip.num_points} data points`))).toBeVisible()
   })
 })
 
@@ -99,7 +104,6 @@ test.describe('Dashboard – model runs table', () => {
   })
 
   test('renders the GFS init time', async ({ page }) => {
-    // new Date('2024-01-15T00:00:00Z').toUTCString() → 'Mon, 15 Jan 2024 00:00:00 GMT'
     await expect(page.getByText(/15 Jan 2024/).first()).toBeVisible()
   })
 
@@ -115,11 +119,11 @@ test.describe('Dashboard – model runs table', () => {
     await expect(page.getByText('error')).toHaveClass(/bg-red-900/)
   })
 
-  test('shows forecast hour range for GFS (0h - 72h)', async ({ page }) => {
+  test('shows forecast hour range for GFS', async ({ page }) => {
     const gfs = MOCK_RUNS[0]
     const first = gfs.forecast_hours[0]
     const last = gfs.forecast_hours[gfs.forecast_hours.length - 1]
-    await expect(page.getByText(`${first}h - ${last}h`)).toBeVisible()
+    await expect(page.getByText(new RegExp(`${first}h .+ ${last}h`))).toBeVisible()
   })
 
   test('shows a dash for a run with no forecast hours', async ({ page }) => {
@@ -127,6 +131,22 @@ test.describe('Dashboard – model runs table', () => {
       runs: [{ ...MOCK_RUNS[0], forecast_hours: [] }],
     })
     await page.goto('/')
-    await expect(page.getByRole('cell', { name: '-' })).toBeVisible()
+    // em-dash "—"
+    await expect(page.getByRole('cell', { name: '—' })).toBeVisible()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Location filter
+// ---------------------------------------------------------------------------
+
+test.describe('Dashboard – location filter', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockApiRoutes(page)
+    await page.goto('/')
+  })
+
+  test('location dropdown is visible with All Locations default', async ({ page }) => {
+    await expect(page.locator('select').filter({ hasText: 'All Locations' })).toBeVisible()
   })
 })

@@ -111,10 +111,10 @@ export function useDivergenceGrid(params: {
   })
 }
 
-export function useDivergenceSummary() {
+export function useDivergenceSummary(params?: { lat?: number; lon?: number }) {
   return useQuery({
-    queryKey: ['divergence-summary'],
-    queryFn: () => api.get<DivergenceSummary[]>('/divergence/summary').then(r => r.data),
+    queryKey: ['divergence-summary', params?.lat, params?.lon],
+    queryFn: () => api.get<DivergenceSummary[]>('/divergence/summary', { params }).then(r => r.data),
   })
 }
 
@@ -123,6 +123,23 @@ export function useGridSnapshots(variable?: string) {
     queryKey: ['grid-snapshots', variable],
     queryFn: () =>
       api.get<GridSnapshot[]>('/divergence/grid/snapshots', { params: { variable } }).then(r => r.data),
+  })
+}
+
+export interface RegionalDivergence {
+  lat: number
+  lon: number
+  label: string
+  spread: number | null
+  rmse: number | null
+  bias: number | null
+}
+
+export function useRegionalDivergence(params: { variable: string; lead_hour: number }) {
+  return useQuery({
+    queryKey: ['divergence-regional', params],
+    queryFn: () =>
+      api.get<RegionalDivergence[]>('/divergence/regional', { params }).then(r => r.data),
   })
 }
 

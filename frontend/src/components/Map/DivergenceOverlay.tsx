@@ -9,11 +9,10 @@ interface Props {
 
 function valueToColor(value: number, min: number, max: number): string {
   const t = max === min ? 0 : (value - min) / (max - min)
-  // Blue (low divergence) → Yellow → Red (high divergence)
+  // Green (low divergence) → Yellow → Red (high divergence)
   const r = Math.round(255 * Math.min(1, t * 2))
   const g = Math.round(255 * Math.min(1, 2 - t * 2))
-  const b = Math.round(255 * Math.max(0, 1 - t * 3))
-  return `rgba(${r},${g},${b},0.55)`
+  return `rgba(${r},${g},0,0.55)`
 }
 
 export default function DivergenceOverlay({ data }: Props) {

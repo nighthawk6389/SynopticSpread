@@ -18,6 +18,13 @@ const VARIABLES = [
   { value: 'hgt_500', label: '500mb Heights' },
 ]
 
+const VARIABLE_UNITS: Record<string, string> = {
+  precip: 'mm',
+  wind_speed: 'm/s',
+  mslp: 'Pa',
+  hgt_500: 'm',
+}
+
 const PRESET_LOCATIONS = [
   { lat: 40.7128, lon: -74.006, label: 'New York' },
   { lat: 34.0522, lon: -118.2437, label: 'Los Angeles' },
@@ -25,6 +32,8 @@ const PRESET_LOCATIONS = [
   { lat: 29.7604, lon: -95.3698, label: 'Houston' },
   { lat: 47.6062, lon: -122.3321, label: 'Seattle' },
   { lat: 39.7392, lon: -104.9903, label: 'Denver' },
+  { lat: 25.7617, lon: -80.1918, label: 'Miami' },
+  { lat: 38.9072, lon: -77.0369, label: 'Washington DC' },
 ]
 
 const COLORS = ['#60a5fa', '#f87171', '#34d399', '#fbbf24', '#a78bfa', '#fb923c']
@@ -41,16 +50,20 @@ export default function TimeSeriesPage() {
     variable,
   })
 
-  // Transform metrics into chart data grouped by lead_hour
+  // Transform metrics into chart data grouped by lead_hour.
+  // Data arrives ordered by created_at DESC; keep the first (newest) entry per lead_hour.
   const chartData = (() => {
     if (!metrics || metrics.length === 0) return []
     const byHour = new Map<number, Record<string, number>>()
     for (const m of metrics) {
-      const existing = byHour.get(m.lead_hour) ?? { lead_hour: m.lead_hour }
-      existing.spread = m.spread
-      existing.rmse = m.rmse
-      existing.bias = m.bias
-      byHour.set(m.lead_hour, existing)
+      if (!byHour.has(m.lead_hour)) {
+        byHour.set(m.lead_hour, {
+          lead_hour: m.lead_hour,
+          spread: m.spread,
+          rmse: m.rmse,
+          bias: m.bias,
+        })
+      }
     }
     return Array.from(byHour.values()).sort((a, b) => a.lead_hour - b.lead_hour)
   })()
@@ -144,19 +157,35 @@ export default function TimeSeriesPage() {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={350}>
-            <LineChart data={chartData}>
+            <LineChart data={chartData} margin={{ left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis
                 dataKey="lead_hour"
                 stroke="#9ca3af"
-                label={{ value: 'Forecast Lead Hour', position: 'bottom', fill: '#9ca3af' }}
+                label={{
+                  value: 'Forecast Lead Hour (h)',
+                  position: 'insideBottom',
+                  offset: -5,
+                  fill: '#9ca3af',
+                  fontSize: 12,
+                }}
               />
-              <YAxis stroke="#9ca3af" />
+              <YAxis
+                stroke="#9ca3af"
+                label={{
+                  value: VARIABLE_UNITS[variable] ?? '',
+                  angle: -90,
+                  position: 'insideLeft',
+                  fill: '#9ca3af',
+                  fontSize: 12,
+                }}
+              />
               <Tooltip
                 contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
                 labelStyle={{ color: '#9ca3af' }}
+                labelFormatter={v => `Lead hour: ${v}h`}
               />
-              <Legend />
+              <Legend verticalAlign="top" height={36} />
               <Line
                 type="monotone"
                 dataKey="spread"
