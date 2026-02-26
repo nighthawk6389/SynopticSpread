@@ -112,8 +112,6 @@ async def get_divergence_summary(
                 func.count(PointMetric.id).label("num_points"),
             )
             .where(PointMetric.variable == var)
-            .order_by(PointMetric.created_at.desc())
-            .limit(100)
         )
         result = await db.execute(stmt)
         row = result.one_or_none()

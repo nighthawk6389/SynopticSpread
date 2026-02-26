@@ -5,9 +5,27 @@ import xarray as xr
 
 
 def extract_point(ds: xr.Dataset, variable: str, lat: float, lon: float) -> float:
-    """Extract scalar value at nearest grid point."""
-    val = ds[variable].sel(latitude=lat, longitude=lon, method="nearest")
-    return float(val.values)
+    """Extract scalar value at nearest grid point.
+
+    Handles both 1-D index coordinates (regular lat/lon grids like GFS) and
+    2-D auxiliary coordinates (projected grids like NAM CONUSNEST).
+    """
+    da = ds[variable]
+    lat_coord = da.coords.get("latitude")
+    lon_coord = da.coords.get("longitude")
+
+    if lat_coord is None or lon_coord is None:
+        raise ValueError(f"Dataset for {variable} has no latitude/longitude coordinates")
+
+    # 1-D case: latitude and longitude are index dimensions — use fast .sel()
+    if lat_coord.ndim == 1:
+        val = da.sel(latitude=lat, longitude=lon, method="nearest")
+        return float(val.values)
+
+    # 2-D case: projected grid (e.g. Lambert Conformal) — find nearest cell manually
+    dist = (lat_coord - lat) ** 2 + (lon_coord - lon) ** 2
+    idx = dist.argmin(...)  # returns dict of {dim: index} for all dims
+    return float(da.isel(**idx).values)
 
 
 def compute_pairwise_metrics(

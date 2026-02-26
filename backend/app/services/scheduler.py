@@ -19,7 +19,7 @@ def _latest_cycle(hour_interval: int = 6) -> datetime:
     return now.replace(hour=cycle_hour, minute=0, second=0, microsecond=0)
 
 
-async def ingest_and_process(model_name: str):
+async def ingest_and_process(model_name: str, init_time: datetime | None = None):
     """Fetch model data, compute divergence metrics, and store results."""
     from sqlalchemy import select
 
@@ -38,7 +38,7 @@ async def ingest_and_process(model_name: str):
     )
 
     fetchers = {"GFS": GFSFetcher, "NAM": NAMFetcher, "ECMWF": ECMWFFetcher}
-    init_time = _latest_cycle()
+    init_time = init_time or _latest_cycle()
     logger.info("Starting ingestion for %s cycle %s", model_name, init_time)
 
     async with async_session() as db:

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.routers import divergence, forecasts
+from app.routers import admin, divergence, forecasts
 
 
 @asynccontextmanager
@@ -53,6 +53,7 @@ app.add_middleware(
 
 app.include_router(forecasts.router, prefix="/api")
 app.include_router(divergence.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
 
 
 @app.get("/api/health")

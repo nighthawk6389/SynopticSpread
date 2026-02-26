@@ -9,17 +9,51 @@ import xarray as xr
 logger = logging.getLogger(__name__)
 
 
+def _to_regular_grid(da: xr.DataArray, common_lat: np.ndarray, common_lon: np.ndarray) -> xr.DataArray:
+    """Interpolate a DataArray onto a regular lat/lon grid.
+
+    Handles both 1-D index coordinates (regular grids like GFS) and 2-D
+    auxiliary coordinates (projected grids like NAM CONUSNEST Lambert Conformal).
+    """
+    lat_coord = da.coords.get("latitude")
+    if lat_coord is None:
+        raise ValueError("DataArray has no latitude coordinate")
+
+    if lat_coord.ndim == 1:
+        return da.interp(latitude=common_lat, longitude=common_lon, method="nearest")
+
+    # 2-D projected grid: flatten and use scipy nearest-neighbour
+    from scipy.interpolate import griddata
+
+    lats_flat = da.coords["latitude"].values.ravel()
+    lons_flat = da.coords["longitude"].values.ravel()
+    vals_flat = da.values.ravel().astype(float)
+
+    valid = ~np.isnan(vals_flat)
+    grid_lon, grid_lat = np.meshgrid(common_lon, common_lat)
+    interpolated = griddata(
+        (lats_flat[valid], lons_flat[valid]),
+        vals_flat[valid],
+        (grid_lat, grid_lon),
+        method="nearest",
+    )
+    return xr.DataArray(
+        interpolated,
+        coords={"latitude": common_lat, "longitude": common_lon},
+        dims=["latitude", "longitude"],
+    )
+
+
 def regrid_to_common(
     datasets: dict[str, xr.Dataset],
     variable: str,
     resolution: float = 0.25,
 ) -> dict[str, xr.DataArray]:
-    """Regrid all model fields to a common lat/lon grid via
-    nearest-neighbor interpolation.
+    """Regrid all model fields to a common lat/lon grid via nearest-neighbor interpolation.
 
+    Handles regular 1-D grids (GFS) and 2-D projected grids (NAM CONUSNEST).
     Uses the intersection of all model bounding boxes at the given resolution.
     """
-    # Find common bounding box
     lat_mins, lat_maxs, lon_mins, lon_maxs = [], [], [], []
     for ds in datasets.values():
         if variable not in ds:
@@ -42,9 +76,10 @@ def regrid_to_common(
     for name, ds in datasets.items():
         if variable not in ds:
             continue
-        regridded[name] = ds[variable].interp(
-            latitude=common_lat, longitude=common_lon, method="nearest"
-        )
+        try:
+            regridded[name] = _to_regular_grid(ds[variable], common_lat, common_lon)
+        except Exception:
+            logger.warning("regrid failed for %s", name, exc_info=True)
     return regridded
 
 

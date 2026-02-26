@@ -34,7 +34,7 @@ class GFSFetcher(ModelFetcher):
         for fhr in lead_hours:
             try:
                 h = Herbie(
-                    init_time,
+                    init_time.replace(tzinfo=None),
                     model="gfs",
                     product="pgrb2.0p25",
                     fxx=fhr,
