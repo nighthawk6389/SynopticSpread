@@ -48,7 +48,7 @@ def trigger(model: str, init_time: str | None):
     payload: dict = {"model": model}
     if init_time:
         payload["init_time"] = init_time
-    r = httpx.post(f"{BASE_URL}/trigger", json=payload)
+    r = httpx.post(f"{BASE_URL}/trigger", json=payload, timeout=60)
     r.raise_for_status()
     data = r.json()
     print(f"Queued: {data['model']} @ {data['init_time']}")
@@ -87,7 +87,7 @@ def main():
     subparsers.add_parser("status", help="Show DB and file counts")
 
     p_trigger = subparsers.add_parser("trigger", help="Queue model ingestion")
-    p_trigger.add_argument("model", choices=["GFS", "NAM", "ECMWF"], help="Model name")
+    p_trigger.add_argument("model", choices=["GFS", "NAM", "ECMWF", "HRRR"], help="Model name")
     p_trigger.add_argument(
         "--time",
         dest="init_time",
