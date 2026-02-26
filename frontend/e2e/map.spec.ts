@@ -2,9 +2,7 @@
  * E2E tests for the Divergence Map page.
  *
  * Tests the filter controls (variable select, overlay mode, lead-hour slider),
- * the Leaflet map container, and the help text. Actual tile rendering and
- * map click interactions are excluded since they depend on external tile
- * servers and the headless-browser canvas environment.
+ * the Leaflet map container, playback controls, and the help text.
  */
 
 import { expect, test } from '@playwright/test'
@@ -50,12 +48,13 @@ test('lead hour display starts at 6h', async ({ page }) => {
   await expect(page.getByText('6h')).toBeVisible()
 })
 
-test('shows the overlay mode selector', async ({ page }) => {
+test('shows the overlay mode selector with Voronoi option', async ({ page }) => {
   await page.goto('/map')
   await expect(page.locator('label', { hasText: 'Overlay' })).toBeVisible()
   const overlaySelect = page.locator('label', { hasText: 'Overlay' }).locator('..').locator('select')
   await expect(overlaySelect.locator('option >> text="Grid Cells"')).toBeAttached()
   await expect(overlaySelect.locator('option >> text="Regions"')).toBeAttached()
+  await expect(overlaySelect.locator('option >> text="Voronoi"')).toBeAttached()
 })
 
 // ---------------------------------------------------------------------------
@@ -90,6 +89,18 @@ test('lead hour slider respects the step of 6', async ({ page }) => {
   const slider = page.locator('input[type="range"]')
   await slider.fill('24')
   await expect(page.getByText('24h')).toBeVisible()
+})
+
+// ---------------------------------------------------------------------------
+// Playback controls
+// ---------------------------------------------------------------------------
+
+test('playback controls are visible', async ({ page }) => {
+  await page.goto('/map')
+  // Play button
+  await expect(page.locator('button[title="Play"]')).toBeVisible()
+  // Speed button
+  await expect(page.locator('button[title="Playback speed"]')).toBeVisible()
 })
 
 // ---------------------------------------------------------------------------

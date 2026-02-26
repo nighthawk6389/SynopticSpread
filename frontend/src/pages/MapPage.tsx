@@ -5,7 +5,9 @@ import { useDivergenceGrid, useMonitorPoints, useRegionalDivergence } from '../a
 import ClickTooltip from '../components/ClickTooltip'
 import DivergenceOverlay from '../components/Map/DivergenceOverlay'
 import MonitorPointMarker from '../components/Map/MonitorPointMarker'
+import PlaybackControls from '../components/Map/PlaybackControls'
 import RegionalOverlay from '../components/Map/RegionalOverlay'
+import VoronoiOverlay from '../components/Map/VoronoiOverlay'
 
 const VARIABLES = [
   { value: 'precip', label: 'Precipitation' },
@@ -22,7 +24,7 @@ const LEAD_HOUR_INFO =
 export default function MapPage() {
   const [variable, setVariable] = useState('precip')
   const [leadHour, setLeadHour] = useState(6)
-  const [overlayMode, setOverlayMode] = useState<'grid' | 'regions'>('grid')
+  const [overlayMode, setOverlayMode] = useState<'grid' | 'regions' | 'voronoi'>('grid')
   const [colorBy, setColorBy] = useState<'spread' | 'rmse' | 'bias'>('spread')
 
   const { data: gridData, isLoading } = useDivergenceGrid({ variable, lead_hour: leadHour })
@@ -78,16 +80,17 @@ export default function MapPage() {
           <label className="block text-xs text-gray-400 mb-1">Overlay</label>
           <select
             value={overlayMode}
-            onChange={e => setOverlayMode(e.target.value as 'grid' | 'regions')}
+            onChange={e => setOverlayMode(e.target.value as 'grid' | 'regions' | 'voronoi')}
             className="rounded bg-gray-800 border border-gray-700 px-3 py-1.5 text-sm"
           >
             <option value="grid">Grid Cells</option>
             <option value="regions">Regions</option>
+            <option value="voronoi">Voronoi</option>
           </select>
         </div>
 
-        {/* Color-by selector (regions mode only) */}
-        {overlayMode === 'regions' && (
+        {/* Color-by selector (regions/voronoi mode) */}
+        {(overlayMode === 'regions' || overlayMode === 'voronoi') && (
           <div>
             <label className="block text-xs text-gray-400 mb-1">Color by</label>
             <select
@@ -105,6 +108,17 @@ export default function MapPage() {
         {isLoading && <span className="text-sm text-gray-500 self-center">Loading grid…</span>}
       </div>
 
+      {/* Playback controls */}
+      <div className="max-w-md">
+        <PlaybackControls
+          leadHour={leadHour}
+          setLeadHour={setLeadHour}
+          min={0}
+          max={120}
+          step={6}
+        />
+      </div>
+
       <div className="h-[600px] rounded-lg overflow-hidden border border-gray-700">
         <MapContainer center={[39.8, -98.5]} zoom={4} className="h-full w-full">
           <TileLayer
@@ -114,6 +128,9 @@ export default function MapPage() {
           {overlayMode === 'grid' && gridData && <DivergenceOverlay data={gridData} />}
           {overlayMode === 'regions' && regionalData && (
             <RegionalOverlay data={regionalData} metric={colorBy} />
+          )}
+          {overlayMode === 'voronoi' && regionalData && (
+            <VoronoiOverlay data={regionalData} metric={colorBy} />
           )}
           {monitorPoints?.map(pt => (
             <MonitorPointMarker

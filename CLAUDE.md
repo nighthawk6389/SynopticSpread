@@ -99,7 +99,7 @@ FastAPI detects `frontend_dist/` at startup and mounts it as static files, so th
 
 ### Data flow
 
-The scheduler (`app/services/scheduler.py`) fires APScheduler cron jobs at 01:30, 07:30, 13:30, 19:30 UTC for GFS/NAM and 14:00 UTC for ECMWF. Each job calls `ingest_and_process(model_name)`, which:
+The scheduler (`app/services/scheduler.py`) fires APScheduler cron jobs at 01:15 UTC for HRRR, 01:30/07:30/13:30/19:30 UTC for GFS/NAM, and 14:00 UTC for ECMWF. Each job calls `ingest_and_process(model_name)`, which:
 
 1. Fetches GRIB2 data via a `ModelFetcher` subclass → returns `dict[lead_hour, xr.Dataset]`
 2. Computes pairwise RMSE/bias at each configured monitor point (`settings.monitor_points`) → stored as `PointMetric` rows in PostgreSQL
@@ -116,9 +116,11 @@ backend/app/
   models/
     model_run.py      — ModelRun (tracks ingestion status), RunStatus enum
     divergence.py     — PointMetric, GridSnapshot
+    alert.py          — AlertRule, AlertEvent
   routers/
     forecasts.py      — GET /api/variables, GET /api/runs
-    divergence.py     — GET /api/divergence/point|grid|grid/snapshots|summary
+    divergence.py     — GET /api/divergence/point|grid|grid/snapshots|summary|regional|decomposition
+    alerts.py         — GET/POST/PUT/DELETE /api/alerts/rules, GET/POST /api/alerts/events
     admin.py          — GET /api/admin/status, POST /trigger, DELETE /runs|metrics|snapshots|cache|reset
   services/
     ingestion/
@@ -126,28 +128,31 @@ backend/app/
       gfs.py          — GFSFetcher using herbie-data
       nam.py          — NAMFetcher using herbie-data
       ecmwf.py        — ECMWFFetcher using cdsapi (requires ECMWF_API_KEY)
+      hrrr.py         — HRRRFetcher using herbie-data (3km CONUS, Lambert Conformal like NAM)
     processing/
       metrics.py      — extract_point, compute_pairwise_metrics, compute_ensemble_spread
       grid.py         — regrid_to_common, compute_grid_divergence, save/load_divergence_zarr
-    scheduler.py      — APScheduler jobs wiring ingestion + processing
+    alerts.py         — check_alerts (threshold checking + webhook notifications)
+    scheduler.py      — APScheduler jobs wiring ingestion + processing + alert checking
   schemas/            — Pydantic response models (mirrors DB models)
 ```
 
 ### Key contracts
 
 - All fetchers return `dict[int, xr.Dataset]` where keys are lead hours and each Dataset uses `latitude`/`longitude` as coordinate names with canonical variable names.
-- GFS uses a regular 1D lat/lon grid. NAM CONUSNEST uses Lambert Conformal projection with 2D `(y, x)` `latitude`/`longitude` auxiliary coordinates. Both `extract_point` (metrics.py) and `regrid_to_common` (grid.py) handle both coordinate dimensionalities — check `lat_coord.ndim` before choosing code path.
+- GFS uses a regular 1D lat/lon grid. NAM CONUSNEST and HRRR use Lambert Conformal projection with 2D `(y, x)` `latitude`/`longitude` auxiliary coordinates. Both `extract_point` (metrics.py) and `regrid_to_common` (grid.py) handle both coordinate dimensionalities — check `lat_coord.ndim` before choosing code path.
 - Grid divergence is per-grid-cell std-dev (ddof=1) across all available models, regridded to a common 0.25° grid.
 - The scheduler is idempotent: it checks for an existing `ModelRun` row before fetching.
 - Herbie requires timezone-naive datetimes; always call `init_time.replace(tzinfo=None)` before passing to `Herbie()`.
 
 ### Frontend
 
-React + Vite + Tailwind v4. Three pages:
+React + Vite + Tailwind v4. Four pages:
 
-- `DashboardPage` — divergence summary cards
-- `MapPage` — Leaflet map with `DivergenceOverlay` heatmap
-- `TimeSeriesPage` — Recharts time-series plots
+- `DashboardPage` — divergence summary cards, alert banner, pair contributions
+- `MapPage` — Leaflet map with grid/regional/Voronoi overlays and animated playback
+- `TimeSeriesPage` — Recharts time-series plots with aggregate and per-pair decomposition views
+- `AlertsPage` — alert rules management and event history
 
 All API calls are in `src/api/client.ts` as React Query hooks. The base URL is controlled by `VITE_API_URL` (defaults to `/api`). In development, Vite proxies `/api` → `http://localhost:8000`. In Docker, nginx proxies it.
 
@@ -163,3 +168,5 @@ Configured in `backend/.env` (copy from `.env.example`):
 | `SCHEDULER_ENABLED` | `true` | Set to `false` for API-only / test mode |
 | `DATABASE_AUTO_CREATE` | `false` | Creates ORM tables on startup without Alembic (used in prod/Render) |
 | `ALLOWED_ORIGINS` | `["http://localhost:5173"]` | CORS allowed origins (JSON list or comma-separated) |
+| `ALERT_WEBHOOK_URL` | — | Optional webhook URL for alert notifications (Slack/email) |
+| `ALERT_CHECK_ENABLED` | `true` | Toggle alert threshold checking after metric computation |

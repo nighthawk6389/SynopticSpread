@@ -2,8 +2,8 @@
  * E2E tests for the Time Series page.
  *
  * Verifies the filter controls (variable & location selects, custom
- * coordinate inputs), the chart title that reflects the current selection,
- * and the empty-state message when the API returns no metrics.
+ * coordinate inputs, view mode toggle), the chart title that reflects
+ * the current selection, and the empty-state message.
  */
 
 import { expect, test } from '@playwright/test'
@@ -58,10 +58,14 @@ test('location dropdown is visible', async ({ page }) => {
   await expect(page.locator('label', { hasText: 'Location' })).toBeVisible()
 })
 
-test('location dropdown contains all eight preset cities', async ({ page }) => {
+test('location dropdown contains all twenty preset cities', async ({ page }) => {
   await page.goto('/timeseries')
   const locationSelect = page.locator('select').nth(1)
-  for (const city of ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Seattle', 'Denver', 'Miami', 'Washington DC']) {
+  for (const city of [
+    'New York', 'Los Angeles', 'Chicago', 'Houston', 'Seattle', 'Denver', 'Miami', 'Washington DC',
+    'Atlanta', 'Boston', 'Minneapolis', 'Phoenix', 'San Francisco', 'Dallas', 'Portland', 'Detroit',
+    'Nashville', 'Columbus', 'Charlotte', 'San Diego',
+  ]) {
     await expect(locationSelect.locator(`option >> text="${city}"`)).toBeAttached()
   }
 })
@@ -71,6 +75,25 @@ test('location dropdown defaults to New York', async ({ page }) => {
   const locationSelect = page.locator('select').nth(1)
   const selected = await locationSelect.inputValue()
   expect(selected).toContain('40.7128')
+})
+
+// ---------------------------------------------------------------------------
+// View mode toggle
+// ---------------------------------------------------------------------------
+
+test('view mode dropdown is visible with Aggregate and Decomposition options', async ({ page }) => {
+  await page.goto('/timeseries')
+  await expect(page.locator('label', { hasText: 'View' })).toBeVisible()
+  const viewSelect = page.locator('label', { hasText: 'View' }).locator('..').locator('select')
+  await expect(viewSelect.locator('option >> text="Aggregate"')).toBeAttached()
+  await expect(viewSelect.locator('option >> text="Per-Pair Decomposition"')).toBeAttached()
+})
+
+test('switching to decomposition view updates chart heading', async ({ page }) => {
+  await page.goto('/timeseries')
+  const viewSelect = page.locator('label', { hasText: 'View' }).locator('..').locator('select')
+  await viewSelect.selectOption('decomposition')
+  await expect(page.getByText(/Per-Pair RMSE/)).toBeVisible()
 })
 
 // ---------------------------------------------------------------------------

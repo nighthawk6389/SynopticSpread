@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import GridSnapshot, PointMetric
+from app.models import GridSnapshot, ModelRun, PointMetric
 from app.schemas.divergence import (
     DivergenceSummary,
     GridDivergenceData,
@@ -135,7 +135,7 @@ async def get_divergence_summary(
                     max_spread=round(float(row.max_spread or 0), 4),
                     min_spread=round(float(row.min_spread or 0), 4),
                     num_points=int(row.num_points),
-                    models_compared=["GFS", "NAM", "ECMWF"],
+                    models_compared=["GFS", "NAM", "ECMWF", "HRRR"],
                     init_time="latest",
                 )
             )
@@ -176,3 +176,115 @@ async def get_regional_divergence(
             "bias": metric.bias if metric else None,
         })
     return results
+
+
+@router.get("/decomposition")
+async def get_decomposition(
+    variable: str = Query(...),
+    lat: float = Query(...),
+    lon: float = Query(...),
+    limit: int = Query(100, le=500),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return per-model-pair RMSE/bias grouped by lead hour for ensemble decomposition."""
+    from collections import defaultdict
+
+    # Fetch point metrics with their associated model run names
+    stmt = (
+        select(
+            PointMetric.lead_hour,
+            PointMetric.rmse,
+            PointMetric.bias,
+            PointMetric.spread,
+            ModelRun.model_name.label("model_a_name"),
+        )
+        .join(ModelRun, PointMetric.run_a_id == ModelRun.id)
+        .where(
+            PointMetric.variable == variable,
+            PointMetric.lat.between(lat - 0.5, lat + 0.5),
+            PointMetric.lon.between(lon - 0.5, lon + 0.5),
+        )
+        .order_by(PointMetric.created_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    rows_a = result.all()
+
+    # Also get model_b names
+    stmt_b = (
+        select(
+            PointMetric.id,
+            ModelRun.model_name.label("model_b_name"),
+        )
+        .join(ModelRun, PointMetric.run_b_id == ModelRun.id)
+        .where(
+            PointMetric.variable == variable,
+            PointMetric.lat.between(lat - 0.5, lat + 0.5),
+            PointMetric.lon.between(lon - 0.5, lon + 0.5),
+        )
+        .order_by(PointMetric.created_at.desc())
+        .limit(limit)
+    )
+    result_b = await db.execute(stmt_b)
+    b_names = {row.id: row.model_b_name for row in result_b.all()}
+
+    # Also get the IDs from a separate query
+    stmt_ids = (
+        select(PointMetric.id, PointMetric.lead_hour, PointMetric.rmse, PointMetric.bias, PointMetric.spread)
+        .where(
+            PointMetric.variable == variable,
+            PointMetric.lat.between(lat - 0.5, lat + 0.5),
+            PointMetric.lon.between(lon - 0.5, lon + 0.5),
+        )
+        .order_by(PointMetric.created_at.desc())
+        .limit(limit)
+    )
+    result_ids = await db.execute(stmt_ids)
+    id_rows = result_ids.all()
+
+    # Build model_a name lookup
+    stmt_a = (
+        select(PointMetric.id, ModelRun.model_name.label("model_a_name"))
+        .join(ModelRun, PointMetric.run_a_id == ModelRun.id)
+        .where(
+            PointMetric.variable == variable,
+            PointMetric.lat.between(lat - 0.5, lat + 0.5),
+            PointMetric.lon.between(lon - 0.5, lon + 0.5),
+        )
+        .order_by(PointMetric.created_at.desc())
+        .limit(limit)
+    )
+    result_a = await db.execute(stmt_a)
+    a_names = {row.id: row.model_a_name for row in result_a.all()}
+
+    # Group by lead_hour and model pair
+    by_hour: dict[int, dict] = defaultdict(lambda: {"pairs": {}, "total_spread": 0.0})
+    seen_hours: dict[int, set] = defaultdict(set)
+
+    for row in id_rows:
+        fhr = row.lead_hour
+        model_a = a_names.get(row.id, "?")
+        model_b = b_names.get(row.id, "?")
+        pair_key = f"{model_a}-{model_b}" if model_a < model_b else f"{model_b}-{model_a}"
+
+        if pair_key in seen_hours[fhr]:
+            continue
+        seen_hours[fhr].add(pair_key)
+
+        by_hour[fhr]["total_spread"] = row.spread
+        a_name, b_name = pair_key.split("-", 1)
+        by_hour[fhr]["pairs"][pair_key] = {
+            "model_a": a_name,
+            "model_b": b_name,
+            "rmse": round(float(row.rmse), 4),
+            "bias": round(float(row.bias), 4),
+        }
+
+    return [
+        {
+            "lead_hour": fhr,
+            "total_spread": round(float(data["total_spread"]), 4),
+            "pairs": list(data["pairs"].values()),
+        }
+        for fhr, data in sorted(by_hour.items())
+    ]

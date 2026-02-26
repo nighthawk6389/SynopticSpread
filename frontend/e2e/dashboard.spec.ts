@@ -27,7 +27,7 @@ test.describe('Dashboard – empty state', () => {
 
   test('shows the subtitle', async ({ page }) => {
     await expect(
-      page.getByText('Ensemble spread across GFS, NAM, and ECMWF'),
+      page.getByText('Ensemble spread across GFS, NAM, ECMWF, and HRRR'),
     ).toBeVisible()
   })
 
@@ -60,8 +60,9 @@ test.describe('Dashboard – summary cards', () => {
   })
 
   test('renders a card for each variable in the API response', async ({ page }) => {
-    await expect(page.getByText('Precipitation')).toBeVisible()
-    await expect(page.getByText('Wind Speed')).toBeVisible()
+    // Cards contain variable labels as h3 headings
+    await expect(page.locator('h3').filter({ hasText: 'Precipitation' })).toBeVisible()
+    await expect(page.locator('h3').filter({ hasText: 'Wind Speed' })).toBeVisible()
   })
 
   test('shows the mean spread value on the card', async ({ page }) => {
@@ -76,8 +77,10 @@ test.describe('Dashboard – summary cards', () => {
 
   test('shows min, avg, and max spread', async ({ page }) => {
     const precip = MOCK_SUMMARIES[0]
-    await expect(page.getByText('Min').first()).toBeVisible()
-    await expect(page.getByText('Max').first()).toBeVisible()
+    // Use locator within the cards grid to avoid matching dropdown options like "Minneapolis"
+    const cardsGrid = page.locator('.grid')
+    await expect(cardsGrid.getByText('Min').first()).toBeVisible()
+    await expect(cardsGrid.getByText('Max').first()).toBeVisible()
     await expect(page.getByText(precip.max_spread.toFixed(2))).toBeVisible()
   })
 
@@ -97,10 +100,11 @@ test.describe('Dashboard – model runs table', () => {
     await page.goto('/')
   })
 
-  test('shows all model names', async ({ page }) => {
+  test('shows all model names including HRRR', async ({ page }) => {
     await expect(page.getByRole('cell', { name: 'GFS' })).toBeVisible()
     await expect(page.getByRole('cell', { name: 'NAM' })).toBeVisible()
     await expect(page.getByRole('cell', { name: 'ECMWF' })).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'HRRR' })).toBeVisible()
   })
 
   test('renders the GFS init time', async ({ page }) => {
@@ -108,7 +112,7 @@ test.describe('Dashboard – model runs table', () => {
   })
 
   test('complete status has a green badge', async ({ page }) => {
-    await expect(page.getByText('complete')).toHaveClass(/bg-green-900/)
+    await expect(page.getByText('complete').first()).toHaveClass(/bg-green-900/)
   })
 
   test('pending status has a yellow badge', async ({ page }) => {
@@ -148,5 +152,20 @@ test.describe('Dashboard – location filter', () => {
 
   test('location dropdown is visible with All Locations default', async ({ page }) => {
     await expect(page.locator('select').filter({ hasText: 'All Locations' })).toBeVisible()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Pair contributions (decomposition)
+// ---------------------------------------------------------------------------
+
+test.describe('Dashboard – pair contributions', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockApiRoutes(page)
+    await page.goto('/')
+  })
+
+  test('shows pair contributions section', async ({ page }) => {
+    await expect(page.getByText('Pair Contributions')).toBeVisible()
   })
 })

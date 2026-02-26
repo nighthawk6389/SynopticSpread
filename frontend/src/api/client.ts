@@ -150,3 +150,79 @@ export function useRunMetrics(runId: string | null) {
     enabled: !!runId,
   })
 }
+
+// Alerts
+
+export interface AlertRule {
+  id: string
+  variable: string
+  lat: number | null
+  lon: number | null
+  location_label: string | null
+  metric: string
+  threshold: number
+  comparison: string
+  consecutive_hours: number
+  enabled: boolean
+  created_at: string
+}
+
+export interface AlertEvent {
+  id: string
+  rule_id: string
+  triggered_at: string
+  value: number
+  variable: string
+  lat: number
+  lon: number
+  location_label: string | null
+  lead_hour: number
+  resolved: boolean
+  resolved_at: string | null
+}
+
+export function useAlertRules() {
+  return useQuery({
+    queryKey: ['alert-rules'],
+    queryFn: () => api.get<AlertRule[]>('/alerts/rules').then(r => r.data),
+  })
+}
+
+export function useActiveAlerts() {
+  return useQuery({
+    queryKey: ['alert-events-active'],
+    queryFn: () => api.get<AlertEvent[]>('/alerts/events', { params: { active_only: true } }).then(r => r.data),
+    refetchInterval: 60_000, // poll every minute
+  })
+}
+
+export function useAlertEvents(limit = 50) {
+  return useQuery({
+    queryKey: ['alert-events', limit],
+    queryFn: () => api.get<AlertEvent[]>('/alerts/events', { params: { limit } }).then(r => r.data),
+  })
+}
+
+// Decomposition
+
+export interface PairMetric {
+  model_a: string
+  model_b: string
+  rmse: number
+  bias: number
+}
+
+export interface DecompositionEntry {
+  lead_hour: number
+  total_spread: number
+  pairs: PairMetric[]
+}
+
+export function useDecomposition(params: { variable: string; lat: number; lon: number; enabled?: boolean }) {
+  const { enabled = true, ...queryParams } = params
+  return useQuery({
+    queryKey: ['decomposition', queryParams],
+    queryFn: () => api.get<DecompositionEntry[]>('/divergence/decomposition', { params: queryParams }).then(r => r.data),
+    enabled: enabled && !!queryParams.lat && !!queryParams.lon,
+  })
+}

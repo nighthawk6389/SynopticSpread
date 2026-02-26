@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { useDivergencePoint } from '../api/client'
+import { useDecomposition, useDivergencePoint } from '../api/client'
 
 const VARIABLES = [
   { value: 'precip', label: 'Precipitation' },
@@ -34,20 +34,58 @@ const PRESET_LOCATIONS = [
   { lat: 39.7392, lon: -104.9903, label: 'Denver' },
   { lat: 25.7617, lon: -80.1918, label: 'Miami' },
   { lat: 38.9072, lon: -77.0369, label: 'Washington DC' },
+  { lat: 33.749, lon: -84.388, label: 'Atlanta' },
+  { lat: 42.3601, lon: -71.0589, label: 'Boston' },
+  { lat: 44.9778, lon: -93.265, label: 'Minneapolis' },
+  { lat: 33.4484, lon: -112.074, label: 'Phoenix' },
+  { lat: 37.7749, lon: -122.4194, label: 'San Francisco' },
+  { lat: 32.7767, lon: -96.797, label: 'Dallas' },
+  { lat: 45.5155, lon: -122.6789, label: 'Portland' },
+  { lat: 42.3314, lon: -83.0458, label: 'Detroit' },
+  { lat: 36.1627, lon: -86.7816, label: 'Nashville' },
+  { lat: 39.9612, lon: -82.9988, label: 'Columbus' },
+  { lat: 35.2271, lon: -80.8431, label: 'Charlotte' },
+  { lat: 32.7157, lon: -117.1611, label: 'San Diego' },
 ]
 
 const COLORS = ['#60a5fa', '#f87171', '#34d399', '#fbbf24', '#a78bfa', '#fb923c']
+
+const PAIR_COLORS: Record<string, string> = {
+  'ECMWF-GFS': '#60a5fa',
+  'GFS-NAM': '#f87171',
+  'ECMWF-NAM': '#34d399',
+  'GFS-HRRR': '#fbbf24',
+  'ECMWF-HRRR': '#a78bfa',
+  'HRRR-NAM': '#fb923c',
+}
+
+const PAIR_DASHES: Record<string, string> = {
+  'ECMWF-GFS': '',
+  'GFS-NAM': '8 4',
+  'ECMWF-NAM': '4 4',
+  'GFS-HRRR': '12 4',
+  'ECMWF-HRRR': '4 2 4 2',
+  'HRRR-NAM': '8 2 2 2',
+}
 
 export default function TimeSeriesPage() {
   const [variable, setVariable] = useState('precip')
   const [location, setLocation] = useState(PRESET_LOCATIONS[0])
   const [customLat, setCustomLat] = useState('')
   const [customLon, setCustomLon] = useState('')
+  const [viewMode, setViewMode] = useState<'aggregate' | 'decomposition'>('aggregate')
 
   const { data: metrics, isLoading } = useDivergencePoint({
     lat: location.lat,
     lon: location.lon,
     variable,
+  })
+
+  const { data: decomposition, isLoading: decompLoading } = useDecomposition({
+    variable,
+    lat: location.lat,
+    lon: location.lon,
+    enabled: viewMode === 'decomposition',
   })
 
   // Transform metrics into chart data grouped by lead_hour.
@@ -68,6 +106,24 @@ export default function TimeSeriesPage() {
     return Array.from(byHour.values()).sort((a, b) => a.lead_hour - b.lead_hour)
   })()
 
+  // Transform decomposition data for per-pair chart
+  const decompChartData = (() => {
+    if (!decomposition || decomposition.length === 0) return { data: [] as Record<string, number>[], pairs: [] as string[] }
+    const pairSet = new Set<string>()
+    const data = decomposition.map(entry => {
+      const row: Record<string, number> = { lead_hour: entry.lead_hour }
+      for (const pair of entry.pairs) {
+        const key = pair.model_a < pair.model_b
+          ? `${pair.model_a}-${pair.model_b}`
+          : `${pair.model_b}-${pair.model_a}`
+        row[key] = pair.rmse
+        pairSet.add(key)
+      }
+      return row
+    })
+    return { data, pairs: Array.from(pairSet).sort() }
+  })()
+
   const handleCustomLocation = () => {
     const lat = parseFloat(customLat)
     const lon = parseFloat(customLon)
@@ -75,6 +131,9 @@ export default function TimeSeriesPage() {
       setLocation({ lat, lon, label: `${lat.toFixed(2)}, ${lon.toFixed(2)}` })
     }
   }
+
+  const isChartLoading = viewMode === 'aggregate' ? isLoading : decompLoading
+  const hasData = viewMode === 'aggregate' ? chartData.length > 0 : decompChartData.data.length > 0
 
   return (
     <div className="space-y-6">
@@ -115,6 +174,18 @@ export default function TimeSeriesPage() {
           </select>
         </div>
 
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">View</label>
+          <select
+            value={viewMode}
+            onChange={e => setViewMode(e.target.value as 'aggregate' | 'decomposition')}
+            className="rounded bg-gray-800 border border-gray-700 px-3 py-1.5 text-sm"
+          >
+            <option value="aggregate">Aggregate</option>
+            <option value="decomposition">Per-Pair Decomposition</option>
+          </select>
+        </div>
+
         <div className="flex items-end gap-2">
           <div>
             <label className="block text-xs text-gray-400 mb-1">Lat</label>
@@ -147,15 +218,18 @@ export default function TimeSeriesPage() {
 
       <div className="rounded-lg bg-gray-800 border border-gray-700 p-4">
         <h3 className="text-sm font-medium text-gray-300 mb-4">
-          Divergence at {location.label} — {VARIABLES.find(v => v.value === variable)?.label}
+          {viewMode === 'aggregate'
+            ? `Divergence at ${location.label} — ${VARIABLES.find(v => v.value === variable)?.label}`
+            : `Per-Pair RMSE at ${location.label} — ${VARIABLES.find(v => v.value === variable)?.label}`
+          }
         </h3>
-        {isLoading ? (
+        {isChartLoading ? (
           <div className="flex h-64 items-center justify-center text-gray-500">Loading...</div>
-        ) : chartData.length === 0 ? (
+        ) : !hasData ? (
           <div className="flex h-64 items-center justify-center text-gray-500">
             No data available for this location and variable.
           </div>
-        ) : (
+        ) : viewMode === 'aggregate' ? (
           <ResponsiveContainer width="100%" height={350}>
             <LineChart data={chartData} margin={{ left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -210,6 +284,51 @@ export default function TimeSeriesPage() {
                 strokeWidth={2}
                 dot={false}
               />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <ResponsiveContainer width="100%" height={350}>
+            <LineChart data={decompChartData.data} margin={{ left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis
+                dataKey="lead_hour"
+                stroke="#9ca3af"
+                label={{
+                  value: 'Forecast Lead Hour (h)',
+                  position: 'insideBottom',
+                  offset: -5,
+                  fill: '#9ca3af',
+                  fontSize: 12,
+                }}
+              />
+              <YAxis
+                stroke="#9ca3af"
+                label={{
+                  value: `RMSE (${VARIABLE_UNITS[variable] ?? ''})`,
+                  angle: -90,
+                  position: 'insideLeft',
+                  fill: '#9ca3af',
+                  fontSize: 12,
+                }}
+              />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
+                labelStyle={{ color: '#9ca3af' }}
+                labelFormatter={v => `Lead hour: ${v}h`}
+              />
+              <Legend verticalAlign="top" height={36} />
+              {decompChartData.pairs.map((pair, i) => (
+                <Line
+                  key={pair}
+                  type="monotone"
+                  dataKey={pair}
+                  stroke={PAIR_COLORS[pair] ?? COLORS[i % COLORS.length]}
+                  strokeDasharray={PAIR_DASHES[pair] ?? ''}
+                  name={pair}
+                  strokeWidth={2}
+                  dot={false}
+                />
+              ))}
             </LineChart>
           </ResponsiveContainer>
         )}

@@ -1,5 +1,32 @@
 # Future Features and Improvements
 
+## Recently Completed
+
+### Additional Model Sources (HRRR)
+- **HRRR** fetcher added (`HRRRFetcher`) using herbie-data, 3km CONUS grid, 6h lead-hour steps (0-48h).
+- Registered in scheduler with cron job at minute 15 of each 6-hour cycle.
+- Added to admin VALID_MODELS.
+
+### Alerting and Notifications
+- `AlertRule` and `AlertEvent` database models for configurable thresholds.
+- CRUD API endpoints at `/api/alerts/rules` and `/api/alerts/events`.
+- Alert checking integrated into scheduler — fires after each metric computation.
+- Webhook notifications via `ALERT_WEBHOOK_URL` env var (Slack/email compatible).
+- Dashboard banner showing active alerts with link to alerts page.
+- Dedicated Alerts page with rules management and event history.
+
+### Enhanced Map Features
+- **Voronoi tessellation**: `d3-delaunay` computes true Voronoi polygons from monitor points.
+- **Animated time-step playback**: Play/pause with 1x/2x/4x speed to watch divergence evolve.
+- **20 preset cities**: Expanded from 8 to 20 US cities for better CONUS coverage.
+
+### Ensemble Spread Decomposition
+- `/api/divergence/decomposition` endpoint returns per-model-pair RMSE/bias by lead hour.
+- Time Series page: "Per-Pair Decomposition" view with spaghetti-style per-pair lines.
+- Dashboard: "Pair Contributions" section with horizontal bar chart showing which pair diverges most.
+
+---
+
 ## Data History and Long-Term Analysis
 
 The current schema (`point_metrics` table) accumulates data indefinitely.
@@ -27,42 +54,29 @@ builds up naturally over time.
 - Archive raw PointMetric rows older than N months to cold storage (S3/Parquet)
   while keeping rollups in PostgreSQL.
 
-## Additional Model Sources
+## Additional Model Sources (remaining)
 
-- **HRRR** (High-Resolution Rapid Refresh): 3km CONUS grid, hourly cycles.
-  Add `HRRRFetcher` subclass using herbie-data, update scheduler cron schedule.
 - **UKMET**: Global model from the UK Met Office.
 - **Canadian GEM/GDPS**: Additional global perspective from Environment Canada.
 - **ICON**: DWD's global model.
 
-## Alerting and Notifications
+## Enhanced Map Features (remaining)
 
-- Define alert thresholds per variable per location (configurable via UI or
-  `.env`).
-- Send email/Slack/webhook when spread exceeds threshold for N consecutive
-  forecast hours.
-- Dashboard banner for active alerts with link to the relevant time series.
-- Digest emails summarizing daily divergence trends.
-
-## Enhanced Map Features
-
-- **True Voronoi tessellation**: Use `d3-delaunay` to compute actual Voronoi
-  polygons from monitor point coordinates instead of fixed-radius circles.
-- **Animated time-step playback**: Auto-advance lead hour with play/pause and
-  speed controls so users can watch divergence evolve over the forecast horizon.
-- **Click-anywhere point query**: Restore the ability to click any map location
-  (not just preset cities) and query point divergence at arbitrary coordinates.
+- **Click-anywhere point query**: Click any map location (not just preset
+  cities) and query point divergence at arbitrary coordinates.
 - **Wind barb overlay**: Show where models disagree on wind direction, not just
   speed.
 - **Multi-variable split-screen**: Side-by-side map views comparing two
   variables simultaneously.
 
-## Ensemble Spread Decomposition
+## Ensemble Spread Decomposition (remaining)
 
-- Break down ensemble spread into model-pair contributions (GFS-NAM, GFS-ECMWF,
-  NAM-ECMWF) so users can see which pair is most divergent.
-- Per-member spaghetti plots on the time series chart.
 - Rank-histogram verification once observational data is integrated.
+
+## Alerting Enhancements
+
+- Digest emails summarizing daily divergence trends.
+- Configurable alert thresholds via `.env` (in addition to UI).
 
 ## Observational Verification
 

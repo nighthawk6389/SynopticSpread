@@ -21,7 +21,7 @@ export const MOCK_SUMMARIES = [
     max_spread: 4.56,
     min_spread: 0.01,
     num_points: 10,
-    models_compared: ['GFS', 'NAM', 'ECMWF'],
+    models_compared: ['GFS', 'NAM', 'ECMWF', 'HRRR'],
     init_time: 'latest',
   },
   {
@@ -30,7 +30,7 @@ export const MOCK_SUMMARIES = [
     max_spread: 2.34,
     min_spread: 0.05,
     num_points: 8,
-    models_compared: ['GFS', 'NAM', 'ECMWF'],
+    models_compared: ['GFS', 'NAM', 'ECMWF', 'HRRR'],
     init_time: 'latest',
   },
 ]
@@ -59,6 +59,14 @@ export const MOCK_RUNS = [
     forecast_hours: [0],
     status: 'error',
     created_at: '2024-01-15T02:00:00Z',
+  },
+  {
+    id: 'd4e5f6a7-b8c9-0123-defg-123456789012',
+    model_name: 'HRRR',
+    init_time: '2024-01-15T00:00:00Z',
+    forecast_hours: [0, 6, 12, 24, 30, 36, 42, 48],
+    status: 'complete',
+    created_at: '2024-01-15T01:15:00Z',
   },
 ]
 
@@ -121,12 +129,63 @@ export const MOCK_MONITOR_POINTS = [
   { lat: 39.7392, lon: -104.9903, label: 'Denver' },
   { lat: 25.7617, lon: -80.1918, label: 'Miami' },
   { lat: 38.9072, lon: -77.0369, label: 'Washington DC' },
+  { lat: 33.749, lon: -84.388, label: 'Atlanta' },
+  { lat: 42.3601, lon: -71.0589, label: 'Boston' },
+  { lat: 44.9778, lon: -93.265, label: 'Minneapolis' },
+  { lat: 33.4484, lon: -112.074, label: 'Phoenix' },
+  { lat: 37.7749, lon: -122.4194, label: 'San Francisco' },
+  { lat: 32.7767, lon: -96.797, label: 'Dallas' },
+  { lat: 45.5155, lon: -122.6789, label: 'Portland' },
+  { lat: 42.3314, lon: -83.0458, label: 'Detroit' },
+  { lat: 36.1627, lon: -86.7816, label: 'Nashville' },
+  { lat: 39.9612, lon: -82.9988, label: 'Columbus' },
+  { lat: 35.2271, lon: -80.8431, label: 'Charlotte' },
+  { lat: 32.7157, lon: -117.1611, label: 'San Diego' },
 ]
 
 export const MOCK_REGIONAL = [
   { lat: 40.7128, lon: -74.006, label: 'New York', spread: 2.5, rmse: 1.8, bias: 0.3 },
   { lat: 34.0522, lon: -118.2437, label: 'Los Angeles', spread: 1.2, rmse: 0.9, bias: -0.1 },
 ]
+
+export const MOCK_DECOMPOSITION = [
+  {
+    lead_hour: 0,
+    total_spread: 2.0,
+    pairs: [
+      { model_a: 'GFS', model_b: 'NAM', rmse: 1.2, bias: -0.3 },
+      { model_a: 'GFS', model_b: 'ECMWF', rmse: 2.1, bias: 0.8 },
+      { model_a: 'NAM', model_b: 'ECMWF', rmse: 1.8, bias: 0.5 },
+    ],
+  },
+  {
+    lead_hour: 24,
+    total_spread: 3.5,
+    pairs: [
+      { model_a: 'GFS', model_b: 'NAM', rmse: 1.8, bias: -0.5 },
+      { model_a: 'GFS', model_b: 'ECMWF', rmse: 3.0, bias: 1.2 },
+      { model_a: 'NAM', model_b: 'ECMWF', rmse: 2.5, bias: 0.7 },
+    ],
+  },
+]
+
+export const MOCK_ALERT_RULES = [
+  {
+    id: 'rule-1-uuid',
+    variable: 'precip',
+    lat: 40.7128,
+    lon: -74.006,
+    location_label: 'New York',
+    metric: 'spread',
+    threshold: 5.0,
+    comparison: 'gt',
+    consecutive_hours: 1,
+    enabled: true,
+    created_at: '2024-01-15T00:00:00Z',
+  },
+]
+
+export const MOCK_ALERT_EVENTS: object[] = []
 
 // ---------------------------------------------------------------------------
 // Route setup helper
@@ -181,6 +240,11 @@ export async function mockApiRoutes(page: Page, overrides: RouteOverrides = {}) 
     route.fulfill({ json: summaries }),
   )
 
+  // Decomposition
+  await page.route(/\/api\/divergence\/decomposition/, route =>
+    route.fulfill({ json: MOCK_DECOMPOSITION }),
+  )
+
   // Regional divergence
   await page.route(/\/api\/divergence\/regional/, route =>
     route.fulfill({ json: MOCK_REGIONAL }),
@@ -205,11 +269,21 @@ export async function mockApiRoutes(page: Page, overrides: RouteOverrides = {}) 
     return route.fulfill({ json: grid })
   })
 
-  // Fallback: catch any remaining /api/ calls so none hit the real network
+  // Fallback: catch any remaining grid queries
   await page.route(/\/api\/divergence\/grid\?/, route => {
     if (grid == null) {
       return route.fulfill({ status: 404, json: { detail: 'No grid divergence data found' } })
     }
     return route.fulfill({ json: grid })
   })
+
+  // Alert rules
+  await page.route(/\/api\/alerts\/rules/, route =>
+    route.fulfill({ json: MOCK_ALERT_RULES }),
+  )
+
+  // Alert events
+  await page.route(/\/api\/alerts\/events/, route =>
+    route.fulfill({ json: MOCK_ALERT_EVENTS }),
+  )
 }

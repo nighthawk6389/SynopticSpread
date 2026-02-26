@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-VALID_MODELS = {"GFS", "NAM", "ECMWF"}
+VALID_MODELS = {"GFS", "NAM", "ECMWF", "HRRR"}
 
 
 class TriggerRequest(BaseModel):

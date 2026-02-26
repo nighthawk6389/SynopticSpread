@@ -37,7 +37,9 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
         compute_pairwise_metrics,
     )
 
-    fetchers = {"GFS": GFSFetcher, "NAM": NAMFetcher, "ECMWF": ECMWFFetcher}
+    from app.services.ingestion.hrrr import HRRRFetcher
+
+    fetchers = {"GFS": GFSFetcher, "NAM": NAMFetcher, "ECMWF": ECMWFFetcher, "HRRR": HRRRFetcher}
     init_time = init_time or _latest_cycle()
     logger.info("Starting ingestion for %s cycle %s", model_name, init_time)
 
@@ -102,7 +104,7 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
 
                     for var in variables:
                         # Point metrics at configured monitor points
-                        for lat, lon, _label in settings.monitor_points:
+                        for lat, lon, label in settings.monitor_points:
                             try:
                                 pairs = compute_pairwise_metrics(
                                     fhr_datasets, var, lat, lon
@@ -110,6 +112,8 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
                                 spread = compute_ensemble_spread(
                                     fhr_datasets, var, lat, lon
                                 )
+                                latest_rmse = 0.0
+                                latest_bias = 0.0
                                 for pair in pairs:
                                     # Look up run IDs
                                     run_a = await db.execute(
@@ -139,6 +143,18 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
                                             spread=spread,
                                         )
                                         db.add(pm)
+                                        latest_rmse = max(latest_rmse, pair["rmse"])
+                                        latest_bias = pair["bias"]
+
+                                # Check alert rules
+                                if settings.alert_check_enabled:
+                                    from app.services.alerts import check_alerts
+
+                                    await check_alerts(
+                                        db, var, lat, lon, fhr,
+                                        spread, latest_rmse, latest_bias,
+                                        location_label=label,
+                                    )
                             except Exception:
                                 logger.warning(
                                     "Point metric failed: %s fhr=%d var=%s",
@@ -216,5 +232,15 @@ scheduler.add_job(
     minute=0,
     args=["ECMWF"],
     id="ingest_ecmwf",
+    replace_existing=True,
+)
+
+scheduler.add_job(
+    ingest_and_process,
+    "cron",
+    hour="1,7,13,19",
+    minute=15,  # HRRR: slightly before GFS/NAM
+    args=["HRRR"],
+    id="ingest_hrrr",
     replace_existing=True,
 )

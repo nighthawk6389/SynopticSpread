@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { NavLink } from 'react-router-dom'
 import type { ModelRun, MonitorPoint } from '../api/client'
-import { useDivergenceSummary, useMonitorPoints, useRuns } from '../api/client'
+import { useActiveAlerts, useDecomposition, useDivergenceSummary, useMonitorPoints, useRuns } from '../api/client'
 import ClickTooltip from '../components/ClickTooltip'
 import RunDetailModal from '../components/RunDetailModal'
 
@@ -111,13 +112,45 @@ export default function DashboardPage() {
   )
   const { data: runs, isLoading: runsLoading } = useRuns()
   const [selectedRun, setSelectedRun] = useState<ModelRun | null>(null)
+  const { data: activeAlerts } = useActiveAlerts()
+
+  // Decomposition for the default location (first selected or New York)
+  const decompLocation = selectedLocation ?? { lat: 40.7128, lon: -74.006 }
+  const { data: decomposition } = useDecomposition({
+    variable: 'precip',
+    lat: decompLocation.lat,
+    lon: decompLocation.lon,
+  })
 
   return (
     <div className="space-y-8">
+      {/* Alert banner */}
+      {activeAlerts && activeAlerts.length > 0 && (
+        <div className="rounded-lg border border-red-700 bg-red-950/40 px-4 py-3 flex items-center gap-3">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-red-400 shrink-0">
+            <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+          </svg>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-300">
+              {activeAlerts.length} active alert{activeAlerts.length > 1 ? 's' : ''}
+            </p>
+            <p className="text-xs text-red-400/70">
+              {activeAlerts.slice(0, 3).map(a =>
+                `${a.variable} ${a.location_label ? `at ${a.location_label}` : ''} (${a.value.toFixed(2)})`
+              ).join(', ')}
+              {activeAlerts.length > 3 && ` and ${activeAlerts.length - 3} more`}
+            </p>
+          </div>
+          <NavLink to="/alerts" className="text-xs text-red-300 hover:text-red-200 underline shrink-0">
+            View alerts
+          </NavLink>
+        </div>
+      )}
+
       <div>
         <h2 className="text-2xl font-bold">Model Divergence Dashboard</h2>
         <p className="mt-1 text-sm text-gray-400">
-          Ensemble spread across GFS, NAM, and ECMWF
+          Ensemble spread across GFS, NAM, ECMWF, and HRRR
           {selectedLocation
             ? <> — filtered to <span className="font-medium text-gray-300">{selectedLocation.label}</span></>
             : <> — computed over {monitorPoints?.length ?? 8} monitored locations</>
@@ -210,6 +243,54 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Pair Contributions */}
+      {decomposition && decomposition.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold mb-1">Pair Contributions</h3>
+          <p className="text-xs text-gray-500 mb-3">
+            Which model pair is most divergent (RMSE by lead hour, precipitation at {selectedLocation?.label ?? 'New York'}).
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {(() => {
+              // Aggregate across lead hours for each pair
+              const pairTotals: Record<string, { rmse: number; count: number }> = {}
+              for (const entry of decomposition) {
+                for (const pair of entry.pairs) {
+                  const key = pair.model_a < pair.model_b
+                    ? `${pair.model_a}-${pair.model_b}`
+                    : `${pair.model_b}-${pair.model_a}`
+                  if (!pairTotals[key]) pairTotals[key] = { rmse: 0, count: 0 }
+                  pairTotals[key].rmse += pair.rmse
+                  pairTotals[key].count += 1
+                }
+              }
+              const pairs = Object.entries(pairTotals)
+                .map(([key, { rmse, count }]) => ({ pair: key, avgRmse: rmse / count }))
+                .sort((a, b) => b.avgRmse - a.avgRmse)
+              const maxRmse = Math.max(...pairs.map(p => p.avgRmse), 0.01)
+
+              return pairs.map(({ pair, avgRmse }) => (
+                <div key={pair} className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="font-medium text-gray-300">{pair}</span>
+                    <span className="text-gray-400">{avgRmse.toFixed(3)}</span>
+                  </div>
+                  <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${(avgRmse / maxRmse) * 100}%`,
+                        backgroundColor: avgRmse / maxRmse > 0.66 ? '#ef4444' : avgRmse / maxRmse > 0.33 ? '#eab308' : '#22c55e',
+                      }}
+                    />
+                  </div>
+                </div>
+              ))
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* Recent Model Runs */}
       <div>
