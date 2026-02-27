@@ -32,6 +32,26 @@ def _latest_cycle(
     return adjusted.replace(hour=cycle_hour, minute=0, second=0, microsecond=0)
 
 
+def _compute_divergence_hours(
+    all_model_data: dict[str, dict[int, object]],
+) -> set[int]:
+    """Return lead hours covered by at least two models.
+
+    Uses the *union* of every model's lead hours, then filters to those
+    where at least two models have data.  This ensures that, e.g.,
+    GFS-NAM divergence at fhr 54-72 is kept even though HRRR only
+    goes to 48 h.
+    """
+    all_hours: set[int] = set()
+    for d in all_model_data.values():
+        all_hours |= set(d.keys())
+    return {
+        h
+        for h in all_hours
+        if sum(1 for d in all_model_data.values() if h in d) >= 2
+    }
+
+
 async def _clear_divergence_for_lead_hours(
     db, init_time: datetime, lead_hours: set[int]
 ):
@@ -192,16 +212,9 @@ async def ingest_and_process(
                 # is preserved even though HRRR only goes to 48h.
                 variables = ["precip", "wind_speed", "mslp", "hgt_500"]
                 if len(all_model_data) >= 2:
-                    # Collect every lead hour that at least 2 models cover.
-                    all_hours: set[int] = set()
-                    for d in all_model_data.values():
-                        all_hours |= set(d.keys())
-                    divergence_hours = {
-                        h
-                        for h in all_hours
-                        if sum(1 for d in all_model_data.values() if h in d)
-                        >= 2
-                    }
+                    divergence_hours = _compute_divergence_hours(
+                        all_model_data
+                    )
 
                     # Only clear data for the hours we are about to rewrite.
                     await _clear_divergence_for_lead_hours(
