@@ -100,6 +100,7 @@ async def ingest_and_process(
     model_name: str,
     init_time: datetime | None = None,
     other_model_data: dict[str, dict] | None = None,
+    force: bool = False,
 ) -> dict | None:
     """Fetch model data, compute divergence metrics, and store results.
 
@@ -110,6 +111,10 @@ async def ingest_and_process(
         provided these are used for cross-model divergence instead of
         re-fetching from external sources.  Used during startup seeding
         so each model is only downloaded once.
+    force : bool, optional
+        When *True*, bypass the idempotent check and delete any existing
+        ``ModelRun`` (plus its associated metrics) before re-ingesting.
+        Used by ``FORCE_MODEL_RELOAD`` on Docker deploys.
 
     Returns
     -------
@@ -153,15 +158,47 @@ async def ingest_and_process(
     async with _ingestion_semaphore:
         async with async_session() as db:
             # Check if already processed
-            existing = await db.execute(
-                select(ModelRun).where(
-                    ModelRun.model_name == model_name,
-                    ModelRun.init_time == init_time,
+            existing_run = (
+                await db.execute(
+                    select(ModelRun).where(
+                        ModelRun.model_name == model_name,
+                        ModelRun.init_time == init_time,
+                    )
                 )
-            )
-            if existing.scalar_one_or_none():
-                logger.info("%s %s already ingested, skipping", model_name, init_time)
-                return None
+            ).scalar_one_or_none()
+
+            if existing_run:
+                if not force:
+                    logger.info(
+                        "%s %s already ingested, skipping", model_name, init_time
+                    )
+                    return None
+
+                # Force mode: remove the existing run and associated data
+                # so we can re-ingest from scratch.
+                logger.info(
+                    "%s %s exists — force-removing for re-ingestion",
+                    model_name,
+                    init_time,
+                )
+                from sqlalchemy import delete as sa_delete
+                from sqlalchemy import or_
+
+                await db.execute(
+                    sa_delete(PointMetric).where(
+                        or_(
+                            PointMetric.run_a_id == existing_run.id,
+                            PointMetric.run_b_id == existing_run.id,
+                        )
+                    )
+                )
+                await db.execute(
+                    sa_delete(ModelPointValue).where(
+                        ModelPointValue.run_id == existing_run.id,
+                    )
+                )
+                await db.delete(existing_run)
+                await db.commit()
 
             # Create pending run record
             run = ModelRun(

@@ -38,6 +38,9 @@ COPY --from=frontend /app/dist ./frontend_dist
 # Create ORM tables on first boot and seed data automatically.
 ENV DATABASE_AUTO_CREATE=true
 ENV SEED_DATA_ON_STARTUP=true
+# Force re-ingestion of all models on every deploy, overriding the
+# idempotent check so divergence and model data are always refreshed.
+ENV FORCE_MODEL_RELOAD=true
 
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

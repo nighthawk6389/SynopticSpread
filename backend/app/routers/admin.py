@@ -23,6 +23,7 @@ VALID_MODELS = {"GFS", "NAM", "ECMWF", "HRRR"}
 class TriggerRequest(BaseModel):
     model: str
     init_time: datetime | None = None  # defaults to latest available cycle
+    force: bool = False  # bypass idempotent check and re-ingest
 
 
 class TriggerResponse(BaseModel):
@@ -32,11 +33,11 @@ class TriggerResponse(BaseModel):
     message: str
 
 
-async def _run_ingestion(model: str, init_time: datetime):
+async def _run_ingestion(model: str, init_time: datetime, force: bool = False):
     from app.services.scheduler import ingest_and_process
 
-    logger.info("Manual trigger: %s %s", model, init_time)
-    await ingest_and_process(model, init_time)
+    logger.info("Manual trigger: %s %s (force=%s)", model, init_time, force)
+    await ingest_and_process(model, init_time, force=force)
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +101,7 @@ async def trigger_ingestion(req: TriggerRequest, background_tasks: BackgroundTas
         raise HTTPException(400, f"model must be one of {sorted(VALID_MODELS)}")
 
     init_time = req.init_time or _latest_cycle()
-    background_tasks.add_task(_run_ingestion, model, init_time)
+    background_tasks.add_task(_run_ingestion, model, init_time, req.force)
 
     return TriggerResponse(
         model=model,

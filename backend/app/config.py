@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = ["http://localhost:5173"]
     # Trigger ingestion for all models on startup when no data exists yet.
     seed_data_on_startup: bool = False
+    # Force re-ingestion of all models on startup, even if data already exists.
+    # Overrides the idempotent check in ingest_and_process.  Intended for
+    # Docker deploys where model data should be refreshed on every restart.
+    force_model_reload: bool = False
     # Alerting
     alert_webhook_url: str = ""
     alert_check_enabled: bool = True
