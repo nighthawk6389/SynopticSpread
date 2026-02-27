@@ -1,5 +1,4 @@
 import 'leaflet/dist/leaflet.css'
-import { useState } from 'react'
 import { MapContainer, TileLayer } from 'react-leaflet'
 import { useDivergenceGrid, useMonitorPoints, useRegionalDivergence } from '../api/client'
 import ClickTooltip from '../components/ClickTooltip'
@@ -8,6 +7,7 @@ import MonitorPointMarker from '../components/Map/MonitorPointMarker'
 import PlaybackControls from '../components/Map/PlaybackControls'
 import RegionalOverlay from '../components/Map/RegionalOverlay'
 import VoronoiOverlay from '../components/Map/VoronoiOverlay'
+import { useUrlState } from '../hooks/useUrlState'
 
 const VARIABLES = [
   { value: 'precip', label: 'Precipitation' },
@@ -22,10 +22,19 @@ const LEAD_HOUR_INFO =
   'Models typically diverge more at longer lead times as small atmospheric differences amplify.'
 
 export default function MapPage() {
-  const [variable, setVariable] = useState('precip')
-  const [leadHour, setLeadHour] = useState(6)
-  const [overlayMode, setOverlayMode] = useState<'grid' | 'regions' | 'voronoi'>('grid')
-  const [colorBy, setColorBy] = useState<'spread' | 'rmse' | 'bias'>('spread')
+  const [variable, setVariable] = useUrlState('var', 'precip')
+  const [leadHourStr, setLeadHourStr] = useUrlState('lead', '6')
+  const [overlayMode, setOverlayMode] = useUrlState('overlay', 'grid')
+  const [colorBy, setColorBy] = useUrlState('color', 'spread')
+
+  const leadHour = parseInt(leadHourStr) || 6
+  const setLeadHour = (v: number | ((prev: number) => number)) => {
+    if (typeof v === 'function') {
+      setLeadHourStr(String(v(leadHour)))
+    } else {
+      setLeadHourStr(String(v))
+    }
+  }
 
   const { data: gridData, isLoading } = useDivergenceGrid({ variable, lead_hour: leadHour })
   const { data: monitorPoints } = useMonitorPoints()
@@ -102,7 +111,7 @@ export default function MapPage() {
             </label>
             <select
               value={overlayMode}
-              onChange={e => setOverlayMode(e.target.value as 'grid' | 'regions' | 'voronoi')}
+              onChange={e => setOverlayMode(e.target.value)}
               className="control-select"
             >
               <option value="grid">Grid Cells</option>
@@ -120,7 +129,7 @@ export default function MapPage() {
               </label>
               <select
                 value={colorBy}
-                onChange={e => setColorBy(e.target.value as 'spread' | 'rmse' | 'bias')}
+                onChange={e => setColorBy(e.target.value)}
                 className="control-select"
               >
                 <option value="spread">Spread</option>
@@ -163,10 +172,10 @@ export default function MapPage() {
           />
           {overlayMode === 'grid' && gridData && <DivergenceOverlay data={gridData} />}
           {overlayMode === 'regions' && regionalData && (
-            <RegionalOverlay data={regionalData} metric={colorBy} />
+            <RegionalOverlay data={regionalData} metric={colorBy as 'spread' | 'rmse' | 'bias'} />
           )}
           {overlayMode === 'voronoi' && regionalData && (
-            <VoronoiOverlay data={regionalData} metric={colorBy} />
+            <VoronoiOverlay data={regionalData} metric={colorBy as 'spread' | 'rmse' | 'bias'} />
           )}
           {monitorPoints?.map(pt => (
             <MonitorPointMarker

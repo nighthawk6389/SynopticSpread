@@ -1,9 +1,13 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import type { ModelRun, MonitorPoint } from '../api/client'
-import { useActiveAlerts, useDecomposition, useDivergenceSummary, useMonitorPoints, useRuns } from '../api/client'
+import type { DivergenceSummary, ModelRun, MonitorPoint } from '../api/client'
+import { useActiveAlerts, useDecomposition, useDivergenceHistory, useDivergenceSummary, useMonitorPoints, useRuns } from '../api/client'
 import ClickTooltip from '../components/ClickTooltip'
+import ResponsiveTable from '../components/ResponsiveTable'
+import type { Column } from '../components/ResponsiveTable'
 import RunDetailModal from '../components/RunDetailModal'
+import Sparkline from '../components/Sparkline'
+import { useUrlState } from '../hooks/useUrlState'
 
 // ─── variable metadata ────────────────────────────────────────────────────────
 
@@ -96,6 +100,12 @@ const LEVEL_LABEL: Record<SpreadLevel, string> = {
   high: 'High',
 }
 
+const LEVEL_COLOR: Record<SpreadLevel, string> = {
+  normal: 'var(--green)',
+  elevated: 'var(--yellow)',
+  high: 'var(--red)',
+}
+
 // ─── info tooltip ─────────────────────────────────────────────────────────────
 
 function InfoTooltip({ meta }: { meta: VariableMeta }) {
@@ -108,11 +118,129 @@ function InfoTooltip({ meta }: { meta: VariableMeta }) {
   )
 }
 
+// ─── summary card with sparkline ──────────────────────────────────────────────
+
+function SummaryCard({ s, index, selectedLocation }: { s: DivergenceSummary; index: number; selectedLocation: MonitorPoint | null }) {
+  const level = spreadLevel(s.variable, s.mean_spread)
+  const unit = VARIABLE_UNITS[s.variable] ?? ''
+  const meta = VARIABLE_META[s.variable]
+  const iconPath = VARIABLE_ICONS[s.variable]
+
+  const { data: history } = useDivergenceHistory({
+    variable: s.variable,
+    hours_back: 48,
+    lat: selectedLocation?.lat,
+    lon: selectedLocation?.lon,
+  })
+
+  return (
+    <div
+      className={`glass-card p-5 animate-slide-up delay-${index + 1} ${LEVEL_CARD[level]}`}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+              strokeWidth={1.5} stroke="currentColor" className="w-4.5 h-4.5"
+              style={{ color: 'var(--text-secondary)' }}>
+              <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
+            </svg>
+          </div>
+          <div className="flex items-center">
+            <h3 className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+              {VARIABLE_LABELS[s.variable] ?? s.variable}
+            </h3>
+            {meta && <InfoTooltip meta={meta} />}
+          </div>
+        </div>
+        <span className={`badge ${LEVEL_BADGE[level]}`}>
+          {LEVEL_LABEL[level]}
+        </span>
+      </div>
+
+      <p className="text-3xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+        {s.mean_spread.toFixed(2)}
+        <span className="ml-1.5 text-sm font-normal" style={{ color: 'var(--text-tertiary)' }}>{unit}</span>
+      </p>
+      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>avg ensemble spread</p>
+
+      {history && history.points.length >= 2 && (
+        <div className="mt-3">
+          <Sparkline data={history.points} color={LEVEL_COLOR[level]} />
+        </div>
+      )}
+
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {[
+          { label: 'Min', value: s.min_spread },
+          { label: 'Avg', value: s.mean_spread },
+          { label: 'Max', value: s.max_spread },
+        ].map(stat => (
+          <div key={stat.label} className="rounded-lg p-2" style={{ background: 'rgba(255,255,255,0.02)' }}>
+            <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{stat.label}</p>
+            <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--text-secondary)' }}>{stat.value.toFixed(2)}</p>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+        {s.num_points} points · {s.models_compared.join(', ')}
+      </p>
+    </div>
+  )
+}
+
+// ─── runs table columns ───────────────────────────────────────────────────────
+
+const RUNS_COLUMNS: Column<ModelRun>[] = [
+  {
+    key: 'model',
+    header: 'Model',
+    render: (run) => (
+      <span className="font-semibold" style={{ fontFamily: 'var(--font-display)' }}>{run.model_name}</span>
+    ),
+  },
+  {
+    key: 'init_time',
+    header: 'Init Time (UTC)',
+    render: (run) => (
+      <span style={{ color: 'var(--text-secondary)' }}>{new Date(run.init_time).toUTCString()}</span>
+    ),
+  },
+  {
+    key: 'status',
+    header: 'Status',
+    render: (run) => (
+      <span className={`badge ${
+        run.status === 'complete' ? 'badge-green' : run.status === 'error' ? 'badge-red' : 'badge-yellow'
+      }`}>{run.status}</span>
+    ),
+  },
+  {
+    key: 'lead_hours',
+    header: 'Lead Hours',
+    render: (run) => (
+      <span style={{ color: 'var(--text-tertiary)' }}>
+        {run.forecast_hours.length > 0
+          ? `${run.forecast_hours[0]}h – ${run.forecast_hours[run.forecast_hours.length - 1]}h (${run.forecast_hours.length} steps)`
+          : '—'}
+      </span>
+    ),
+  },
+]
+
 // ─── component ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { data: monitorPoints } = useMonitorPoints()
-  const [selectedLocation, setSelectedLocation] = useState<MonitorPoint | null>(null)
+  const [locationParam, setLocationParam] = useUrlState('location', '')
+
+  const selectedLocation = (() => {
+    if (!locationParam || !monitorPoints) return null
+    const pt = monitorPoints.find(p => `${p.lat},${p.lon}` === locationParam)
+    return pt ?? null
+  })()
 
   const { data: summaries, isLoading: summaryLoading } = useDivergenceSummary(
     selectedLocation ? { lat: selectedLocation.lat, lon: selectedLocation.lon } : undefined,
@@ -178,16 +306,9 @@ export default function DashboardPage() {
           Location
         </label>
         <select
-          value={selectedLocation ? `${selectedLocation.lat},${selectedLocation.lon}` : 'all'}
+          value={locationParam || 'all'}
           onChange={e => {
-            if (e.target.value === 'all') {
-              setSelectedLocation(null)
-            } else {
-              const pt = monitorPoints?.find(
-                p => `${p.lat},${p.lon}` === e.target.value,
-              )
-              if (pt) setSelectedLocation(pt)
-            }
+            setLocationParam(e.target.value === 'all' ? '' : e.target.value)
           }}
           className="control-select"
         >
@@ -207,63 +328,9 @@ export default function DashboardPage() {
             <div key={i} className={`skeleton-shimmer h-[180px] delay-${i + 1}`} />
           ))
         ) : summaries && summaries.length > 0 ? (
-          summaries.map((s, i) => {
-            const level = spreadLevel(s.variable, s.mean_spread)
-            const unit = VARIABLE_UNITS[s.variable] ?? ''
-            const meta = VARIABLE_META[s.variable]
-            const iconPath = VARIABLE_ICONS[s.variable]
-            return (
-              <div
-                key={s.variable}
-                className={`glass-card p-5 animate-slide-up delay-${i + 1} ${LEVEL_CARD[level]}`}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)' }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                        strokeWidth={1.5} stroke="currentColor" className="w-4.5 h-4.5"
-                        style={{ color: 'var(--text-secondary)' }}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
-                      </svg>
-                    </div>
-                    <div className="flex items-center">
-                      <h3 className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                        {VARIABLE_LABELS[s.variable] ?? s.variable}
-                      </h3>
-                      {meta && <InfoTooltip meta={meta} />}
-                    </div>
-                  </div>
-                  <span className={`badge ${LEVEL_BADGE[level]}`}>
-                    {LEVEL_LABEL[level]}
-                  </span>
-                </div>
-
-                <p className="text-3xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
-                  {s.mean_spread.toFixed(2)}
-                  <span className="ml-1.5 text-sm font-normal" style={{ color: 'var(--text-tertiary)' }}>{unit}</span>
-                </p>
-                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>avg ensemble spread</p>
-
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  {[
-                    { label: 'Min', value: s.min_spread },
-                    { label: 'Avg', value: s.mean_spread },
-                    { label: 'Max', value: s.max_spread },
-                  ].map(stat => (
-                    <div key={stat.label} className="rounded-lg p-2" style={{ background: 'rgba(255,255,255,0.02)' }}>
-                      <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{stat.label}</p>
-                      <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--text-secondary)' }}>{stat.value.toFixed(2)}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {s.num_points} points · {s.models_compared.join(', ')}
-                </p>
-              </div>
-            )
-          })
+          summaries.map((s, i) => (
+            <SummaryCard key={s.variable} s={s} index={i} selectedLocation={selectedLocation} />
+          ))
         ) : (
           <div className="col-span-full glass-card p-10 text-center">
             <p style={{ color: 'var(--text-tertiary)' }}>No divergence data yet. Trigger a model run from the admin panel.</p>
@@ -333,83 +400,17 @@ export default function DashboardPage() {
         <p className="section-subtitle mb-4">
           Click a row to inspect point-level metrics for that run.
         </p>
-        <div className="glass-card overflow-hidden" style={{ borderRadius: '16px' }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Model</th>
-                <th>Init Time (UTC)</th>
-                <th>Status</th>
-                <th>
-                  <span className="inline-flex items-center">
-                    Lead Hours
-                    <ClickTooltip>
-                      <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>What are lead hours?</p>
-                      <p className="mb-2" style={{ color: 'var(--text-secondary)' }}>
-                        Lead time (forecast hour) measures how far into the future a forecast is
-                        valid, counted from the model's initialization time.
-                      </p>
-                      <p className="mb-2" style={{ color: 'var(--text-secondary)' }}>
-                        <strong>0h</strong> = analysis (current conditions).{' '}
-                        <strong>6h</strong> = 6 hours from now.{' '}
-                        <strong>24h</strong> = tomorrow.{' '}
-                        <strong>120h</strong> = 5 days out.
-                      </p>
-                      <p style={{ color: 'var(--text-tertiary)' }}>
-                        Models tend to diverge more at longer lead times as small
-                        differences in initial conditions amplify over time.
-                      </p>
-                    </ClickTooltip>
-                  </span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {runsLoading ? (
-                <tr>
-                  <td colSpan={4} className="text-center py-10" style={{ color: 'var(--text-tertiary)' }}>Loading…</td>
-                </tr>
-              ) : runs && runs.length > 0 ? (
-                runs.map(run => (
-                  <tr
-                    key={run.id}
-                    onClick={() => setSelectedRun(run)}
-                    className="cursor-pointer"
-                  >
-                    <td>
-                      <span className="font-semibold" style={{ fontFamily: 'var(--font-display)' }}>{run.model_name}</span>
-                    </td>
-                    <td style={{ color: 'var(--text-secondary)' }}>
-                      {new Date(run.init_time).toUTCString()}
-                    </td>
-                    <td>
-                      <span className={`badge ${
-                        run.status === 'complete'
-                          ? 'badge-green'
-                          : run.status === 'error'
-                            ? 'badge-red'
-                            : 'badge-yellow'
-                      }`}>
-                        {run.status}
-                      </span>
-                    </td>
-                    <td style={{ color: 'var(--text-tertiary)' }}>
-                      {run.forecast_hours.length > 0
-                        ? `${run.forecast_hours[0]}h – ${run.forecast_hours[run.forecast_hours.length - 1]}h (${run.forecast_hours.length} steps)`
-                        : '—'}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4} className="text-center py-10" style={{ color: 'var(--text-tertiary)' }}>
-                    No model runs yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        {runsLoading ? (
+          <div className="glass-card p-10 text-center" style={{ color: 'var(--text-tertiary)' }}>Loading…</div>
+        ) : (
+          <ResponsiveTable
+            columns={RUNS_COLUMNS}
+            data={runs ?? []}
+            keyFn={run => run.id}
+            onRowClick={setSelectedRun}
+            emptyMessage="No model runs yet."
+          />
+        )}
       </div>
 
       {selectedRun && (

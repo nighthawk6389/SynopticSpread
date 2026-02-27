@@ -15,7 +15,7 @@ logging.basicConfig(
 )
 
 from app.config import settings
-from app.routers import admin, alerts, divergence, forecasts
+from app.routers import admin, alerts, divergence, forecasts, verification
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +185,7 @@ app.add_middleware(
 app.include_router(forecasts.router, prefix="/api")
 app.include_router(divergence.router, prefix="/api")
 app.include_router(alerts.router, prefix="/api")
+app.include_router(verification.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 
 

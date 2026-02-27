@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import type { AlertRule } from '../api/client'
+import type { AlertEvent, AlertRule } from '../api/client'
 import { useAlertEvents, useAlertRules, useMonitorPoints } from '../api/client'
 import axios from 'axios'
 import { useQueryClient } from '@tanstack/react-query'
+import ResponsiveTable from '../components/ResponsiveTable'
+import type { Column } from '../components/ResponsiveTable'
 
 const api = axios.create({ baseURL: '/api' })
 
@@ -65,6 +67,125 @@ export default function AlertsPage() {
     queryClient.invalidateQueries({ queryKey: ['alert-events'] })
     queryClient.invalidateQueries({ queryKey: ['alert-events-active'] })
   }
+
+  const ruleColumns: Column<AlertRule>[] = [
+    {
+      key: 'variable',
+      header: 'Variable',
+      render: (rule) => (
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 500 }}>{rule.variable}</span>
+      ),
+    },
+    {
+      key: 'metric',
+      header: 'Metric',
+      render: (rule) => <span style={{ color: 'var(--text-secondary)' }}>{rule.metric}</span>,
+    },
+    {
+      key: 'condition',
+      header: 'Condition',
+      render: (rule) => (
+        <span style={{ color: 'var(--text-tertiary)' }}>
+          {rule.comparison === 'gt' ? '>' : '<'} {rule.threshold}
+          {rule.consecutive_hours > 1 && ` (${rule.consecutive_hours}h consecutive)`}
+        </span>
+      ),
+    },
+    {
+      key: 'location',
+      header: 'Location',
+      render: (rule) => <span style={{ color: 'var(--text-tertiary)' }}>{rule.location_label ?? 'Any'}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (rule) => (
+        <span className={`badge ${rule.enabled ? 'badge-green' : 'badge-neutral'}`}>
+          {rule.enabled ? 'Enabled' : 'Disabled'}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (rule) => (
+        <div className="flex gap-3">
+          <button onClick={(e) => { e.stopPropagation(); handleToggleRule(rule) }}
+            className="text-xs font-medium transition-colors"
+            style={{ color: 'var(--accent)' }}>
+            {rule.enabled ? 'Disable' : 'Enable'}
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); handleDeleteRule(rule.id) }}
+            className="text-xs font-medium transition-colors"
+            style={{ color: 'var(--red)' }}>
+            Delete
+          </button>
+        </div>
+      ),
+    },
+  ]
+
+  const eventColumns: Column<AlertEvent>[] = [
+    {
+      key: 'time',
+      header: 'Time',
+      render: (event) => (
+        <span style={{ color: 'var(--text-tertiary)' }}>{new Date(event.triggered_at).toLocaleString()}</span>
+      ),
+    },
+    {
+      key: 'variable',
+      header: 'Variable',
+      render: (event) => (
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 500 }}>{event.variable}</span>
+      ),
+    },
+    {
+      key: 'location',
+      header: 'Location',
+      render: (event) => (
+        <span style={{ color: 'var(--text-tertiary)' }}>
+          {event.location_label ?? `${event.lat.toFixed(2)}, ${event.lon.toFixed(2)}`}
+        </span>
+      ),
+    },
+    {
+      key: 'lead_hour',
+      header: 'Lead Hour',
+      render: (event) => <span>{event.lead_hour}h</span>,
+    },
+    {
+      key: 'value',
+      header: 'Value',
+      render: (event) => (
+        <span className="font-mono" style={{ fontWeight: 600 }}>{event.value.toFixed(3)}</span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (event) => (
+        <span className={`badge ${event.resolved ? 'badge-neutral' : 'badge-red'}`}>
+          {event.resolved ? 'Resolved' : 'Active'}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (event) => (
+        <>
+          {!event.resolved && (
+            <button onClick={(e) => { e.stopPropagation(); handleResolve(event.id) }}
+              className="text-xs font-medium transition-colors"
+              style={{ color: 'var(--green)' }}>
+              Resolve
+            </button>
+          )}
+        </>
+      ),
+    },
+  ]
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -151,109 +272,31 @@ export default function AlertsPage() {
           </div>
         )}
 
-        <div className="glass-card overflow-hidden" style={{ borderRadius: '16px' }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Variable</th>
-                <th>Metric</th>
-                <th>Condition</th>
-                <th>Location</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rulesLoading ? (
-                <tr><td colSpan={6} className="text-center py-10" style={{ color: 'var(--text-tertiary)' }}>Loading...</td></tr>
-              ) : rules && rules.length > 0 ? (
-                rules.map(rule => (
-                  <tr key={rule.id}>
-                    <td style={{ fontFamily: 'var(--font-display)', fontWeight: 500 }}>{rule.variable}</td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{rule.metric}</td>
-                    <td style={{ color: 'var(--text-tertiary)' }}>
-                      {rule.comparison === 'gt' ? '>' : '<'} {rule.threshold}
-                      {rule.consecutive_hours > 1 && ` (${rule.consecutive_hours}h consecutive)`}
-                    </td>
-                    <td style={{ color: 'var(--text-tertiary)' }}>{rule.location_label ?? 'Any'}</td>
-                    <td>
-                      <span className={`badge ${rule.enabled ? 'badge-green' : 'badge-neutral'}`}>
-                        {rule.enabled ? 'Enabled' : 'Disabled'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="flex gap-3">
-                        <button onClick={() => handleToggleRule(rule)}
-                          className="text-xs font-medium transition-colors"
-                          style={{ color: 'var(--accent)' }}>
-                          {rule.enabled ? 'Disable' : 'Enable'}
-                        </button>
-                        <button onClick={() => handleDeleteRule(rule.id)}
-                          className="text-xs font-medium transition-colors"
-                          style={{ color: 'var(--red)' }}>
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr><td colSpan={6} className="text-center py-10" style={{ color: 'var(--text-tertiary)' }}>No alert rules configured.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        {rulesLoading ? (
+          <div className="glass-card p-10 text-center" style={{ color: 'var(--text-tertiary)' }}>Loading...</div>
+        ) : (
+          <ResponsiveTable
+            columns={ruleColumns}
+            data={rules ?? []}
+            keyFn={rule => rule.id}
+            emptyMessage="No alert rules configured."
+          />
+        )}
       </div>
 
       {/* Alert Events */}
       <div className="animate-slide-up delay-2">
         <h3 className="section-title text-lg mb-4" style={{ fontFamily: 'var(--font-display)' }}>Recent Events</h3>
-        <div className="glass-card overflow-hidden" style={{ borderRadius: '16px' }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Variable</th>
-                <th>Location</th>
-                <th>Lead Hour</th>
-                <th>Value</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {eventsLoading ? (
-                <tr><td colSpan={7} className="text-center py-10" style={{ color: 'var(--text-tertiary)' }}>Loading...</td></tr>
-              ) : events && events.length > 0 ? (
-                events.map(event => (
-                  <tr key={event.id}>
-                    <td style={{ color: 'var(--text-tertiary)' }}>{new Date(event.triggered_at).toLocaleString()}</td>
-                    <td style={{ fontFamily: 'var(--font-display)', fontWeight: 500 }}>{event.variable}</td>
-                    <td style={{ color: 'var(--text-tertiary)' }}>{event.location_label ?? `${event.lat.toFixed(2)}, ${event.lon.toFixed(2)}`}</td>
-                    <td>{event.lead_hour}h</td>
-                    <td className="font-mono" style={{ fontWeight: 600 }}>{event.value.toFixed(3)}</td>
-                    <td>
-                      <span className={`badge ${event.resolved ? 'badge-neutral' : 'badge-red'}`}>
-                        {event.resolved ? 'Resolved' : 'Active'}
-                      </span>
-                    </td>
-                    <td>
-                      {!event.resolved && (
-                        <button onClick={() => handleResolve(event.id)}
-                          className="text-xs font-medium transition-colors"
-                          style={{ color: 'var(--green)' }}>
-                          Resolve
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr><td colSpan={7} className="text-center py-10" style={{ color: 'var(--text-tertiary)' }}>No alert events.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        {eventsLoading ? (
+          <div className="glass-card p-10 text-center" style={{ color: 'var(--text-tertiary)' }}>Loading...</div>
+        ) : (
+          <ResponsiveTable
+            columns={eventColumns}
+            data={events ?? []}
+            keyFn={event => event.id}
+            emptyMessage="No alert events."
+          />
+        )}
       </div>
     </div>
   )

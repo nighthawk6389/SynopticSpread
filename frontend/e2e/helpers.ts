@@ -277,6 +277,21 @@ export async function mockApiRoutes(page: Page, overrides: RouteOverrides = {}) 
     return route.fulfill({ json: grid })
   })
 
+  // Divergence history (sparklines)
+  await page.route(/\/api\/divergence\/history/, route =>
+    route.fulfill({ json: { variable: 'precip', points: [] } }),
+  )
+
+  // Model values (outlook)
+  await page.route(/\/api\/divergence\/model-values/, route =>
+    route.fulfill({ json: [] }),
+  )
+
+  // Verification scores
+  await page.route(/\/api\/verification\/scores/, route =>
+    route.fulfill({ json: { variable: 'precip', lat: 40.71, lon: -74.01, scores: [] } }),
+  )
+
   // Alert rules
   await page.route(/\/api\/alerts\/rules/, route =>
     route.fulfill({ json: MOCK_ALERT_RULES }),

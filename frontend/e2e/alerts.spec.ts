@@ -49,7 +49,7 @@ test('shows existing rule in the table', async ({ page }) => {
   await page.goto('/alerts')
   await expect(page.getByText('precip').first()).toBeVisible()
   await expect(page.getByText('New York').first()).toBeVisible()
-  await expect(page.getByText('Enabled')).toBeVisible()
+  await expect(page.getByText('Enabled').first()).toBeVisible()
 })
 
 // ---------------------------------------------------------------------------

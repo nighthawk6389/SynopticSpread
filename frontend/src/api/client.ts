@@ -233,6 +233,67 @@ export function useModelValues(params: {
   })
 }
 
+// Spread history (sparklines)
+
+export interface SpreadHistoryPoint {
+  timestamp: string
+  mean_spread: number
+}
+
+export interface SpreadHistoryOut {
+  variable: string
+  points: SpreadHistoryPoint[]
+}
+
+export function useDivergenceHistory(params: {
+  variable: string
+  hours_back?: number
+  lat?: number
+  lon?: number
+  enabled?: boolean
+}) {
+  const { enabled = true, ...queryParams } = params
+  return useQuery({
+    queryKey: ['divergence-history', queryParams],
+    queryFn: () =>
+      api.get<SpreadHistoryOut>('/divergence/history', { params: queryParams }).then(r => r.data),
+    enabled,
+  })
+}
+
+// Verification scores
+
+export interface VerificationScore {
+  model_name: string
+  lead_hour: number
+  mae: number
+  bias: number
+  n_samples: number
+}
+
+export interface VerificationResponse {
+  variable: string
+  lat: number
+  lon: number
+  scores: VerificationScore[]
+}
+
+export function useVerificationScores(params: {
+  lat: number
+  lon: number
+  variable: string
+  model_name?: string
+  enabled?: boolean
+}) {
+  const { enabled = true, ...queryParams } = params
+  return useQuery({
+    queryKey: ['verification-scores', queryParams],
+    queryFn: () =>
+      api.get<VerificationResponse>('/verification/scores', { params: queryParams }).then(r => r.data),
+    enabled: enabled && !!queryParams.lat && !!queryParams.lon && !!queryParams.variable,
+  })
+}
+
 // Decomposition
 
 export interface PairMetric {

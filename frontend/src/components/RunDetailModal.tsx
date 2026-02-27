@@ -1,5 +1,7 @@
-import type { ModelRun, MonitorPoint } from '../api/client'
+import type { ModelRun, MonitorPoint, PointMetric } from '../api/client'
 import { useRunMetrics } from '../api/client'
+import ResponsiveTable from './ResponsiveTable'
+import type { Column } from './ResponsiveTable'
 
 const VARIABLE_LABELS: Record<string, string> = {
   precip: 'Precip',
@@ -26,6 +28,40 @@ function resolveLabel(lat: number, lon: number, points: MonitorPoint[]): string 
   return match ? match.label : `${lat.toFixed(2)}, ${lon.toFixed(2)}`
 }
 
+function makeMetricColumns(monitorPoints: MonitorPoint[]): Column<PointMetric>[] {
+  return [
+    {
+      key: 'location',
+      header: 'Location',
+      render: (m) => (
+        <span style={{ color: 'var(--text-secondary)' }}>
+          {resolveLabel(m.lat, m.lon, monitorPoints)}
+        </span>
+      ),
+    },
+    {
+      key: 'lead_hour',
+      header: 'Lead hr',
+      render: (m) => <span style={{ color: 'var(--text-tertiary)' }}>{m.lead_hour}h</span>,
+    },
+    {
+      key: 'spread',
+      header: 'Spread',
+      render: (m) => <span className="font-mono text-xs">{m.spread.toFixed(3)}</span>,
+    },
+    {
+      key: 'rmse',
+      header: 'RMSE',
+      render: (m) => <span className="font-mono text-xs">{m.rmse.toFixed(3)}</span>,
+    },
+    {
+      key: 'bias',
+      header: 'Bias',
+      render: (m) => <span className="font-mono text-xs">{m.bias.toFixed(3)}</span>,
+    },
+  ]
+}
+
 export default function RunDetailModal({ run, monitorPoints, onClose }: Props) {
   const { data: metrics, isLoading } = useRunMetrics(run.id)
 
@@ -42,6 +78,8 @@ export default function RunDetailModal({ run, monitorPoints, onClose }: Props) {
     if (!grouped[m.variable]) grouped[m.variable] = []
     grouped[m.variable].push(m)
   }
+
+  const columns = makeMetricColumns(monitorPoints)
 
   return (
     <div
@@ -109,32 +147,12 @@ export default function RunDetailModal({ run, monitorPoints, onClose }: Props) {
                     ({VARIABLE_UNITS[variable] ?? ''})
                   </span>
                 </h3>
-                <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid var(--border-subtle)' }}>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Location</th>
-                        <th>Lead hr</th>
-                        <th>Spread</th>
-                        <th>RMSE</th>
-                        <th>Bias</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map(m => (
-                        <tr key={m.id}>
-                          <td style={{ color: 'var(--text-secondary)' }}>
-                            {resolveLabel(m.lat, m.lon, monitorPoints)}
-                          </td>
-                          <td style={{ color: 'var(--text-tertiary)' }}>{m.lead_hour}h</td>
-                          <td className="font-mono text-xs">{m.spread.toFixed(3)}</td>
-                          <td className="font-mono text-xs">{m.rmse.toFixed(3)}</td>
-                          <td className="font-mono text-xs">{m.bias.toFixed(3)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <ResponsiveTable
+                  columns={columns}
+                  data={rows}
+                  keyFn={m => m.id}
+                  emptyMessage="No metrics."
+                />
               </div>
             ))
           )}

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -12,6 +12,8 @@ from app.schemas.divergence import (
     GridSnapshotOut,
     ModelPointValueOut,
     PointMetricOut,
+    SpreadHistoryOut,
+    SpreadHistoryPoint,
 )
 from app.services.processing.grid import load_divergence_zarr
 
@@ -42,6 +44,53 @@ async def get_point_divergence(
         stmt = stmt.where(PointMetric.lead_hour == lead_hour)
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+@router.get("/history", response_model=SpreadHistoryOut)
+async def get_spread_history(
+    variable: str = Query(...),
+    hours_back: int = Query(48, le=168),
+    lat: float | None = Query(None),
+    lon: float | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return time-bucketed mean spread for sparkline display."""
+    from collections import defaultdict
+
+    cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=hours_back)
+
+    stmt = (
+        select(PointMetric.created_at, PointMetric.spread)
+        .where(
+            PointMetric.variable == variable,
+            PointMetric.created_at >= cutoff,
+        )
+        .order_by(PointMetric.created_at.asc())
+    )
+    if lat is not None and lon is not None:
+        stmt = stmt.where(
+            PointMetric.lat.between(lat - 0.5, lat + 0.5),
+            PointMetric.lon.between(lon - 0.5, lon + 0.5),
+        )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    # Bucket by hour in Python (dialect-neutral)
+    buckets: dict[str, list[float]] = defaultdict(list)
+    for row in rows:
+        hour_key = row.created_at.strftime("%Y-%m-%dT%H:00:00")
+        buckets[hour_key].append(float(row.spread))
+
+    points = [
+        SpreadHistoryPoint(
+            timestamp=ts,
+            mean_spread=round(sum(vals) / len(vals), 4),
+        )
+        for ts, vals in sorted(buckets.items())
+    ]
+
+    return SpreadHistoryOut(variable=variable, points=points)
 
 
 @router.get("/grid", response_model=GridDivergenceData)

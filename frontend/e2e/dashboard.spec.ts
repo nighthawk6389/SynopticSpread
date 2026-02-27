@@ -41,11 +41,8 @@ test.describe('Dashboard – empty state', () => {
     await expect(page.getByText('No model runs yet.')).toBeVisible()
   })
 
-  test('model runs table headers are still rendered', async ({ page }) => {
-    await expect(page.locator('th').filter({ hasText: 'Model' })).toBeVisible()
-    await expect(page.locator('th').filter({ hasText: 'Init Time' })).toBeVisible()
-    await expect(page.locator('th').filter({ hasText: 'Status' })).toBeVisible()
-    await expect(page.locator('th').filter({ hasText: 'Lead Hours' })).toBeVisible()
+  test('shows the Recent Model Runs heading', async ({ page }) => {
+    await expect(page.getByText('Recent Model Runs')).toBeVisible()
   })
 })
 
@@ -116,18 +113,18 @@ test.describe('Dashboard – model runs table', () => {
   })
 
   test('pending status has a yellow badge', async ({ page }) => {
-    await expect(page.getByText('pending')).toHaveClass(/badge-yellow/)
+    await expect(page.getByText('pending').first()).toHaveClass(/badge-yellow/)
   })
 
   test('error status has a red badge', async ({ page }) => {
-    await expect(page.getByText('error')).toHaveClass(/badge-red/)
+    await expect(page.getByText('error').first()).toHaveClass(/badge-red/)
   })
 
   test('shows forecast hour range for GFS', async ({ page }) => {
     const gfs = MOCK_RUNS[0]
     const first = gfs.forecast_hours[0]
     const last = gfs.forecast_hours[gfs.forecast_hours.length - 1]
-    await expect(page.getByText(new RegExp(`${first}h .+ ${last}h`))).toBeVisible()
+    await expect(page.getByText(new RegExp(`${first}h .+ ${last}h`)).first()).toBeVisible()
   })
 
   test('shows a dash for a run with no forecast hours', async ({ page }) => {

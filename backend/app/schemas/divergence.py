@@ -55,6 +55,16 @@ class DivergenceSummary(BaseModel):
     init_time: str
 
 
+class SpreadHistoryPoint(BaseModel):
+    timestamp: str
+    mean_spread: float
+
+
+class SpreadHistoryOut(BaseModel):
+    variable: str
+    points: list[SpreadHistoryPoint]
+
+
 class ModelPointValueOut(BaseModel):
     """Raw predicted value from a single model at a single monitor point."""
 

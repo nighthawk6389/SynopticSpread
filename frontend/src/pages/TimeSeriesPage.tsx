@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
   Legend,
   Line,
@@ -9,7 +11,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { useDecomposition, useDivergencePoint } from '../api/client'
+import { useDecomposition, useDivergencePoint, useVerificationScores } from '../api/client'
+import { useUrlState } from '../hooks/useUrlState'
 
 const VARIABLES = [
   { value: 'precip', label: 'Precipitation' },
@@ -50,6 +53,13 @@ const PRESET_LOCATIONS = [
 
 const COLORS = ['#22d3ee', '#f87171', '#34d399', '#fbbf24', '#a78bfa', '#fb923c']
 
+const MODEL_COLORS: Record<string, string> = {
+  GFS: '#22d3ee',
+  NAM: '#f87171',
+  ECMWF: '#34d399',
+  HRRR: '#fbbf24',
+}
+
 const PAIR_COLORS: Record<string, string> = {
   'ECMWF-GFS': '#22d3ee',
   'GFS-NAM': '#f87171',
@@ -69,11 +79,25 @@ const PAIR_DASHES: Record<string, string> = {
 }
 
 export default function TimeSeriesPage() {
-  const [variable, setVariable] = useState('precip')
-  const [location, setLocation] = useState(PRESET_LOCATIONS[0])
+  const [variable, setVariable] = useUrlState('var', 'precip')
+  const [locParam, setLocParam] = useUrlState('loc', `${PRESET_LOCATIONS[0].lat},${PRESET_LOCATIONS[0].lon}`)
+  const [viewMode, setViewMode] = useUrlState('view', 'aggregate')
+
+  const location = (() => {
+    const parts = locParam.split(',')
+    if (parts.length === 2) {
+      const lat = parseFloat(parts[0])
+      const lon = parseFloat(parts[1])
+      if (!isNaN(lat) && !isNaN(lon)) {
+        const preset = PRESET_LOCATIONS.find(l => l.lat === lat && l.lon === lon)
+        return { lat, lon, label: preset?.label ?? `${lat.toFixed(2)}, ${lon.toFixed(2)}` }
+      }
+    }
+    return PRESET_LOCATIONS[0]
+  })()
+
   const [customLat, setCustomLat] = useState('')
   const [customLon, setCustomLon] = useState('')
-  const [viewMode, setViewMode] = useState<'aggregate' | 'decomposition'>('aggregate')
 
   const { data: metrics, isLoading } = useDivergencePoint({
     lat: location.lat,
@@ -86,6 +110,13 @@ export default function TimeSeriesPage() {
     lat: location.lat,
     lon: location.lon,
     enabled: viewMode === 'decomposition',
+  })
+
+  const { data: verification, isLoading: verificationLoading } = useVerificationScores({
+    variable,
+    lat: location.lat,
+    lon: location.lon,
+    enabled: viewMode === 'verification',
   })
 
   const chartData = (() => {
@@ -121,16 +152,35 @@ export default function TimeSeriesPage() {
     return { data, pairs: Array.from(pairSet).sort() }
   })()
 
+  const verificationChartData = (() => {
+    if (!verification || verification.scores.length === 0) return { data: [] as Record<string, number>[], models: [] as string[] }
+    const modelSet = new Set<string>()
+    const byHour: Record<number, Record<string, number>> = {}
+    for (const s of verification.scores) {
+      modelSet.add(s.model_name)
+      if (!byHour[s.lead_hour]) byHour[s.lead_hour] = { lead_hour: s.lead_hour }
+      byHour[s.lead_hour][`${s.model_name}_mae`] = s.mae
+    }
+    return {
+      data: Object.values(byHour).sort((a, b) => a.lead_hour - b.lead_hour),
+      models: Array.from(modelSet).sort(),
+    }
+  })()
+
   const handleCustomLocation = () => {
     const lat = parseFloat(customLat)
     const lon = parseFloat(customLon)
     if (!isNaN(lat) && !isNaN(lon)) {
-      setLocation({ lat, lon, label: `${lat.toFixed(2)}, ${lon.toFixed(2)}` })
+      setLocParam(`${lat},${lon}`)
     }
   }
 
-  const isChartLoading = viewMode === 'aggregate' ? isLoading : decompLoading
-  const hasData = viewMode === 'aggregate' ? chartData.length > 0 : decompChartData.data.length > 0
+  const isChartLoading = viewMode === 'aggregate' ? isLoading : viewMode === 'decomposition' ? decompLoading : verificationLoading
+  const hasData = viewMode === 'aggregate'
+    ? chartData.length > 0
+    : viewMode === 'decomposition'
+      ? decompChartData.data.length > 0
+      : verificationChartData.data.length > 0
 
   const tooltipStyle = {
     backgroundColor: 'var(--bg-surface)',
@@ -175,8 +225,7 @@ export default function TimeSeriesPage() {
             <select
               value={`${location.lat},${location.lon}`}
               onChange={e => {
-                const loc = PRESET_LOCATIONS.find(l => `${l.lat},${l.lon}` === e.target.value)
-                if (loc) setLocation(loc)
+                setLocParam(e.target.value)
               }}
               className="control-select"
             >
@@ -193,11 +242,12 @@ export default function TimeSeriesPage() {
             </label>
             <select
               value={viewMode}
-              onChange={e => setViewMode(e.target.value as 'aggregate' | 'decomposition')}
+              onChange={e => setViewMode(e.target.value)}
               className="control-select"
             >
               <option value="aggregate">Aggregate</option>
               <option value="decomposition">Per-Pair Decomposition</option>
+              <option value="verification">Forecast Verification</option>
             </select>
           </div>
 
@@ -240,9 +290,18 @@ export default function TimeSeriesPage() {
         <h3 className="text-sm font-semibold mb-5" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-secondary)' }}>
           {viewMode === 'aggregate'
             ? `Divergence at ${location.label} — ${VARIABLES.find(v => v.value === variable)?.label}`
-            : `Per-Pair RMSE at ${location.label} — ${VARIABLES.find(v => v.value === variable)?.label}`
+            : viewMode === 'decomposition'
+              ? `Per-Pair RMSE at ${location.label} — ${VARIABLES.find(v => v.value === variable)?.label}`
+              : `Forecast Verification at ${location.label} — ${VARIABLES.find(v => v.value === variable)?.label}`
           }
         </h3>
+
+        {viewMode === 'verification' && (
+          <p className="text-xs mb-4 px-3 py-2 rounded-lg" style={{ color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)' }}>
+            Compares forecasts to the model's own analysis field (lead hour 0). MAE shown per model per lead hour.
+          </p>
+        )}
+
         {isChartLoading ? (
           <div className="flex h-[350px] items-center justify-center" style={{ color: 'var(--text-tertiary)' }}>
             <div className="flex items-center gap-3">
@@ -252,7 +311,9 @@ export default function TimeSeriesPage() {
           </div>
         ) : !hasData ? (
           <div className="flex h-[350px] items-center justify-center" style={{ color: 'var(--text-tertiary)' }}>
-            No data available for this location and variable.
+            {viewMode === 'verification'
+              ? 'Insufficient verification data. Forecasts need matching analysis fields at the same valid time.'
+              : 'No data available for this location and variable.'}
           </div>
         ) : viewMode === 'aggregate' ? (
           <ResponsiveContainer width="100%" height={350}>
@@ -295,7 +356,7 @@ export default function TimeSeriesPage() {
               <Line type="monotone" dataKey="bias" stroke={COLORS[2]} name="Bias" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
-        ) : (
+        ) : viewMode === 'decomposition' ? (
           <ResponsiveContainer width="100%" height={350}>
             <LineChart data={decompChartData.data} margin={{ left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(56,103,187,0.12)" />
@@ -344,6 +405,53 @@ export default function TimeSeriesPage() {
                 />
               ))}
             </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={verificationChartData.data} margin={{ left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(56,103,187,0.12)" />
+              <XAxis
+                dataKey="lead_hour"
+                stroke="var(--text-tertiary)"
+                tick={{ fontSize: 11, fontFamily: 'var(--font-body)' }}
+                label={{
+                  value: 'Forecast Lead Hour (h)',
+                  position: 'insideBottom',
+                  offset: -5,
+                  fill: 'var(--text-tertiary)',
+                  fontSize: 11,
+                  fontFamily: 'var(--font-body)',
+                }}
+              />
+              <YAxis
+                stroke="var(--text-tertiary)"
+                tick={{ fontSize: 11, fontFamily: 'var(--font-body)' }}
+                label={{
+                  value: `MAE (${VARIABLE_UNITS[variable] ?? ''})`,
+                  angle: -90,
+                  position: 'insideLeft',
+                  fill: 'var(--text-tertiary)',
+                  fontSize: 11,
+                  fontFamily: 'var(--font-body)',
+                }}
+              />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                labelStyle={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', fontSize: 11 }}
+                itemStyle={{ fontFamily: 'var(--font-body)', fontSize: 12 }}
+                labelFormatter={v => `Lead hour: ${v}h`}
+              />
+              <Legend verticalAlign="top" height={36} wrapperStyle={{ fontFamily: 'var(--font-body)', fontSize: 12 }} />
+              {verificationChartData.models.map((model, i) => (
+                <Bar
+                  key={model}
+                  dataKey={`${model}_mae`}
+                  fill={MODEL_COLORS[model] ?? COLORS[i % COLORS.length]}
+                  name={`${model} MAE`}
+                  radius={[4, 4, 0, 0]}
+                />
+              ))}
+            </BarChart>
           </ResponsiveContainer>
         )}
       </div>

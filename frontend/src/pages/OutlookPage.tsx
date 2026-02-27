@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { type ModelPointValue, useModelValues, useMonitorPoints } from '../api/client'
+import { useUrlState } from '../hooks/useUrlState'
 
 // ── Unit conversion helpers ───────────────────────────────────────────────────
 
@@ -256,8 +257,17 @@ function VariableCard({ variable, rows, index }: VariableCardProps) {
 
 export default function OutlookPage() {
   const { data: monitorPoints = [] } = useMonitorPoints()
-  const [selectedIdx, setSelectedIdx] = useState(0)
-  const [leadHour, setLeadHour] = useState(12)
+  const [locationParam, setLocationParam] = useUrlState('location', '')
+  const [leadParam, setLeadParam] = useUrlState('lead', '12')
+
+  const leadHour = parseInt(leadParam) || 12
+  const setLeadHour = (v: number) => setLeadParam(String(v))
+
+  const selectedIdx = (() => {
+    if (!locationParam || monitorPoints.length === 0) return 0
+    const idx = monitorPoints.findIndex(p => `${p.lat},${p.lon}` === locationParam)
+    return idx >= 0 ? idx : 0
+  })()
 
   const point = monitorPoints[selectedIdx]
 
@@ -295,12 +305,12 @@ export default function OutlookPage() {
             Location
           </label>
           <select
-            value={selectedIdx}
-            onChange={e => setSelectedIdx(Number(e.target.value))}
+            value={locationParam || (monitorPoints[0] ? `${monitorPoints[0].lat},${monitorPoints[0].lon}` : '')}
+            onChange={e => setLocationParam(e.target.value)}
             className="control-select"
           >
-            {monitorPoints.map((pt, i) => (
-              <option key={pt.label} value={i}>{pt.label}</option>
+            {monitorPoints.map(pt => (
+              <option key={pt.label} value={`${pt.lat},${pt.lon}`}>{pt.label}</option>
             ))}
           </select>
         </div>
