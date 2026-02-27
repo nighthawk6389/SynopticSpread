@@ -32,8 +32,91 @@ def _latest_cycle(
     return adjusted.replace(hour=cycle_hour, minute=0, second=0, microsecond=0)
 
 
-async def ingest_and_process(model_name: str, init_time: datetime | None = None):
-    """Fetch model data, compute divergence metrics, and store results."""
+def _compute_divergence_hours(
+    all_model_data: dict[str, dict[int, object]],
+) -> set[int]:
+    """Return lead hours covered by at least two models.
+
+    Uses the *union* of every model's lead hours, then filters to those
+    where at least two models have data.  This ensures that, e.g.,
+    GFS-NAM divergence at fhr 54-72 is kept even though HRRR only
+    goes to 48 h.
+    """
+    all_hours: set[int] = set()
+    for d in all_model_data.values():
+        all_hours |= set(d.keys())
+    return {
+        h
+        for h in all_hours
+        if sum(1 for d in all_model_data.values() if h in d) >= 2
+    }
+
+
+async def _clear_divergence_for_lead_hours(
+    db, init_time: datetime, lead_hours: set[int]
+):
+    """Remove existing divergence data for specific lead hours before recomputing.
+
+    Only deletes data for the given *lead_hours* so that divergence at other
+    forecast hours (computed with a different model subset) is preserved.
+    """
+    from sqlalchemy import delete, or_, select
+
+    from app.models import GridSnapshot, ModelPointValue, ModelRun, PointMetric
+
+    run_ids_result = await db.execute(
+        select(ModelRun.id).where(ModelRun.init_time == init_time)
+    )
+    run_ids = list(run_ids_result.scalars().all())
+
+    hours_list = list(lead_hours)
+
+    if run_ids:
+        await db.execute(
+            delete(PointMetric).where(
+                or_(
+                    PointMetric.run_a_id.in_(run_ids),
+                    PointMetric.run_b_id.in_(run_ids),
+                ),
+                PointMetric.lead_hour.in_(hours_list),
+            )
+        )
+        await db.execute(
+            delete(ModelPointValue).where(
+                ModelPointValue.run_id.in_(run_ids),
+                ModelPointValue.lead_hour.in_(hours_list),
+            )
+        )
+
+    await db.execute(
+        delete(GridSnapshot).where(
+            GridSnapshot.init_time == init_time,
+            GridSnapshot.lead_hour.in_(hours_list),
+        )
+    )
+
+
+async def ingest_and_process(
+    model_name: str,
+    init_time: datetime | None = None,
+    other_model_data: dict[str, dict] | None = None,
+) -> dict | None:
+    """Fetch model data, compute divergence metrics, and store results.
+
+    Parameters
+    ----------
+    other_model_data : dict, optional
+        Pre-fetched datasets from other models keyed by model name.  When
+        provided these are used for cross-model divergence instead of
+        re-fetching from external sources.  Used during startup seeding
+        so each model is only downloaded once.
+
+    Returns
+    -------
+    dict or None
+        The fetched data for this model (``{lead_hour: xr.Dataset}``),
+        or ``None`` if the model was already ingested.
+    """
     from sqlalchemy import select
 
     from app.database import async_session
@@ -78,7 +161,7 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
             )
             if existing.scalar_one_or_none():
                 logger.info("%s %s already ingested, skipping", model_name, init_time)
-                return
+                return None
 
             # Create pending run record
             run = ModelRun(
@@ -96,37 +179,63 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
                 data = await asyncio.to_thread(fetcher.fetch, init_time)
                 run.forecast_hours = sorted(data.keys())
 
-                # Fetch other available models for cross-model divergence
+                # Gather other available models for cross-model divergence.
                 all_model_data: dict[str, dict[int, object]] = {model_name: data}
-                for other_name, other_cls in fetchers.items():
-                    if other_name == model_name:
-                        continue
-                    other_run = await db.execute(
-                        select(ModelRun).where(
-                            ModelRun.model_name == other_name,
-                            ModelRun.init_time == init_time,
-                            ModelRun.status == RunStatus.complete,
+                if other_model_data:
+                    # Use pre-fetched data (avoids redundant downloads during seed).
+                    all_model_data.update(other_model_data)
+                else:
+                    for other_name, other_cls in fetchers.items():
+                        if other_name == model_name:
+                            continue
+                        other_run = await db.execute(
+                            select(ModelRun).where(
+                                ModelRun.model_name == other_name,
+                                ModelRun.init_time == init_time,
+                                ModelRun.status == RunStatus.complete,
+                            )
                         )
-                    )
-                    if other_run.scalar_one_or_none():
-                        try:
-                            other_data = await asyncio.to_thread(
-                                other_cls().fetch, init_time
-                            )
-                            all_model_data[other_name] = other_data
-                        except Exception:
-                            logger.warning(
-                                "Could not fetch %s for comparison", other_name
-                            )
+                        if other_run.scalar_one_or_none():
+                            try:
+                                other_data = await asyncio.to_thread(
+                                    other_cls().fetch, init_time
+                                )
+                                all_model_data[other_name] = other_data
+                            except Exception:
+                                logger.warning(
+                                    "Could not fetch %s for comparison", other_name
+                                )
 
-                # Compute divergence for common lead hours
+                # Compute divergence at every lead hour that has 2+ models.
+                # This uses a *union* of all models' lead hours (not the
+                # intersection) so that, e.g., GFS-NAM divergence at fhr 54-72
+                # is preserved even though HRRR only goes to 48h.
                 variables = ["precip", "wind_speed", "mslp", "hgt_500"]
                 if len(all_model_data) >= 2:
-                    common_hours = set(data.keys())
-                    for other_data in all_model_data.values():
-                        common_hours &= set(other_data.keys())
+                    divergence_hours = _compute_divergence_hours(
+                        all_model_data
+                    )
 
-                    for fhr in sorted(common_hours):
+                    # Only clear data for the hours we are about to rewrite.
+                    await _clear_divergence_for_lead_hours(
+                        db, init_time, divergence_hours
+                    )
+
+                    # Pre-fetch ModelRun records once (avoids O(pairs *
+                    # locations * variables * hours) redundant queries).
+                    run_lookup: dict[str, ModelRun] = {}
+                    for mname in all_model_data:
+                        res = await db.execute(
+                            select(ModelRun).where(
+                                ModelRun.model_name == mname,
+                                ModelRun.init_time == init_time,
+                            )
+                        )
+                        mr = res.scalar_one_or_none()
+                        if mr:
+                            run_lookup[mname] = mr
+
+                    for fhr in sorted(divergence_hours):
                         fhr_datasets = {
                             name: d[fhr]
                             for name, d in all_model_data.items()
@@ -153,25 +262,10 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
                                     )
                                     latest_rmse = 0.0
                                     latest_bias = 0.0
-                                    # Collect raw per-model values for the Outlook page
-                                    model_runs: dict[str, object] = {}
-                                    model_values: dict[str, float] = {}
+                                    seen_models: set[str] = set()
                                     for pair in pairs:
-                                        # Look up run IDs
-                                        run_a = await db.execute(
-                                            select(ModelRun).where(
-                                                ModelRun.model_name == pair["model_a"],
-                                                ModelRun.init_time == init_time,
-                                            )
-                                        )
-                                        run_b = await db.execute(
-                                            select(ModelRun).where(
-                                                ModelRun.model_name == pair["model_b"],
-                                                ModelRun.init_time == init_time,
-                                            )
-                                        )
-                                        ra = run_a.scalar_one_or_none()
-                                        rb = run_b.scalar_one_or_none()
+                                        ra = run_lookup.get(pair["model_a"])
+                                        rb = run_lookup.get(pair["model_b"])
                                         if ra and rb:
                                             pm = PointMetric(
                                                 run_a_id=ra.id,
@@ -185,31 +279,35 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
                                                 spread=spread,
                                             )
                                             db.add(pm)
-                                            latest_rmse = max(latest_rmse, pair["rmse"])
-                                            latest_bias = pair["bias"]
-                                        # Accumulate per-model raw values
-                                        if ra and pair["model_a"] not in model_runs:
-                                            model_runs[pair["model_a"]] = ra
-                                            model_values[pair["model_a"]] = pair[
-                                                "val_a"
-                                            ]
-                                        if rb and pair["model_b"] not in model_runs:
-                                            model_runs[pair["model_b"]] = rb
-                                            model_values[pair["model_b"]] = pair[
-                                                "val_b"
-                                            ]
-                                    # Persist raw per-model values
-                                    for model_nm, model_run_obj in model_runs.items():
-                                        db.add(
-                                            ModelPointValue(
-                                                run_id=model_run_obj.id,
-                                                variable=var,
-                                                lat=lat,
-                                                lon=lon,
-                                                lead_hour=fhr,
-                                                value=model_values[model_nm],
+                                            latest_rmse = max(
+                                                latest_rmse, pair["rmse"]
                                             )
-                                        )
+                                            latest_bias = pair["bias"]
+                                        # Persist per-model raw values (once each)
+                                        if ra and pair["model_a"] not in seen_models:
+                                            seen_models.add(pair["model_a"])
+                                            db.add(
+                                                ModelPointValue(
+                                                    run_id=ra.id,
+                                                    variable=var,
+                                                    lat=lat,
+                                                    lon=lon,
+                                                    lead_hour=fhr,
+                                                    value=pair["val_a"],
+                                                )
+                                            )
+                                        if rb and pair["model_b"] not in seen_models:
+                                            seen_models.add(pair["model_b"])
+                                            db.add(
+                                                ModelPointValue(
+                                                    run_id=rb.id,
+                                                    variable=var,
+                                                    lat=lat,
+                                                    lon=lon,
+                                                    lead_hour=fhr,
+                                                    value=pair["val_b"],
+                                                )
+                                            )
 
                                     # Check alert rules
                                     if settings.alert_check_enabled:
@@ -265,17 +363,22 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
                                 db.add(gs)
                             except Exception:
                                 logger.warning(
-                                    "Grid divergence failed: fhr=%d var=%s", fhr, var
+                                    "Grid divergence failed: fhr=%d var=%s",
+                                    fhr,
+                                    var,
                                 )
 
                 run.status = RunStatus.complete
                 await db.commit()
                 logger.info("%s %s ingestion complete", model_name, init_time)
 
+                return data
+
             except Exception:
                 logger.exception("%s ingestion failed", model_name)
                 run.status = RunStatus.error
                 await db.commit()
+                return None
 
 
 # Register cron jobs: GFS/NAM/HRRR every 6 hours, ECMWF once daily.
