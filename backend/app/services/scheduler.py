@@ -132,7 +132,7 @@ async def ingest_and_process(
         PointMetric,
         RunStatus,
     )
-    from app.services.ingestion.ecmwf import ECMWFFetcher
+    from app.services.ingestion.ecmwf import ECMWFFetcher, latest_era5_cycle
     from app.services.ingestion.gfs import GFSFetcher
     from app.services.ingestion.hrrr import HRRRFetcher
     from app.services.ingestion.nam import NAMFetcher
@@ -151,7 +151,9 @@ async def ingest_and_process(
         "ECMWF": ECMWFFetcher,
         "HRRR": HRRRFetcher,
     }
-    init_time = init_time or _latest_cycle()
+    if init_time is None:
+        # ECMWF uses ERA5 reanalysis which is ~5 days behind real time
+        init_time = latest_era5_cycle() if model_name == "ECMWF" else _latest_cycle()
     logger.info("Starting ingestion for %s cycle %s", model_name, init_time)
 
     # Serialize ingestions so only one runs at a time, keeping the event loop free

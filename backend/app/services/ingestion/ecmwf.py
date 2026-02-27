@@ -1,6 +1,6 @@
 import logging
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import xarray as xr
@@ -8,6 +8,9 @@ import xarray as xr
 from app.services.ingestion.base import DEFAULT_LEAD_HOURS, ModelFetcher
 
 logger = logging.getLogger(__name__)
+
+# ERA5T (preliminary) data is available ~5 days behind real time on the CDS.
+ERA5_DELAY_DAYS = 5
 
 # CDS variable names for each canonical variable
 CDS_VARIABLES = {
@@ -19,18 +22,39 @@ CDS_VARIABLES = {
 }
 
 
+def latest_era5_cycle() -> datetime:
+    """Return the most recent ERA5 analysis time likely available on the CDS.
+
+    ERA5T preliminary data is published ~5 days behind real time, so we
+    target the 00Z cycle from 5 days ago.
+    """
+    now = datetime.now(timezone.utc)
+    return (now - timedelta(days=ERA5_DELAY_DAYS)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+
+
 class ECMWFFetcher(ModelFetcher):
     name = "ECMWF"
 
     def __init__(self):
+        from app.config import settings
+
         try:
             import cdsapi
 
-            self.client = cdsapi.Client()
+            if settings.ecmwf_api_key:
+                self.client = cdsapi.Client(
+                    url=settings.ecmwf_api_url,
+                    key=settings.ecmwf_api_key,
+                )
+            else:
+                # Fall back to ~/.cdsapirc
+                self.client = cdsapi.Client()
         except Exception:
             logger.warning(
                 "cdsapi not configured — ECMWF fetcher will not work. "
-                "Set up ~/.cdsapirc with your Copernicus CDS credentials."
+                "Set ECMWF_API_KEY in .env or set up ~/.cdsapirc."
             )
             self.client = None
 

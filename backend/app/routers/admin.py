@@ -10,7 +10,7 @@ from sqlalchemy import delete, func, select
 
 from app.config import settings
 from app.database import async_session
-from app.models import GridSnapshot, ModelRun, PointMetric
+from app.models import GridSnapshot, ModelPointValue, ModelRun, PointMetric
 from app.services.scheduler import _latest_cycle
 
 logger = logging.getLogger(__name__)
@@ -100,7 +100,14 @@ async def trigger_ingestion(req: TriggerRequest, background_tasks: BackgroundTas
     if model not in VALID_MODELS:
         raise HTTPException(400, f"model must be one of {sorted(VALID_MODELS)}")
 
-    init_time = req.init_time or _latest_cycle()
+    if req.init_time:
+        init_time = req.init_time
+    elif model == "ECMWF":
+        from app.services.ingestion.ecmwf import latest_era5_cycle
+
+        init_time = latest_era5_cycle()
+    else:
+        init_time = _latest_cycle()
     background_tasks.add_task(_run_ingestion, model, init_time, req.force)
 
     return TriggerResponse(
@@ -122,6 +129,7 @@ async def trigger_ingestion(req: TriggerRequest, background_tasks: BackgroundTas
 @router.delete("/runs", summary="Delete all model run records")
 async def clear_runs():
     async with async_session() as db:
+        await db.execute(delete(ModelPointValue))
         result = await db.execute(delete(ModelRun))
         await db.commit()
     return {"deleted_runs": result.rowcount}
@@ -167,6 +175,7 @@ async def clear_cache():
 )
 async def reset_all():
     async with async_session() as db:
+        model_values = (await db.execute(delete(ModelPointValue))).rowcount
         metrics = (await db.execute(delete(PointMetric))).rowcount
         snapshots = (await db.execute(delete(GridSnapshot))).rowcount
         runs = (await db.execute(delete(ModelRun))).rowcount
