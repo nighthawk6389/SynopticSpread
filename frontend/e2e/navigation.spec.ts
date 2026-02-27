@@ -15,13 +15,13 @@ test.beforeEach(async ({ page }) => {
 
 test('shows the app title in the navbar', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'SynopticSpread' })).toBeVisible()
+  await expect(page.getByText('SynopticSpread')).toBeVisible()
 })
 
-test('navbar contains all three navigation links', async ({ page }) => {
+test('navbar contains all navigation links', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Divergence Map' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Map' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Time Series' })).toBeVisible()
 })
 
@@ -31,28 +31,29 @@ test('navbar contains all three navigation links', async ({ page }) => {
 
 test('Dashboard link is highlighted when on the root path', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('link', { name: 'Dashboard' })).toHaveClass(/text-blue-400/)
+  await expect(page.getByRole('link', { name: 'Dashboard' })).toHaveClass(/text-\[var\(--accent\)\]/)
 })
 
-test('Divergence Map link is highlighted when on /map', async ({ page }) => {
+test('Map link is highlighted when on /map', async ({ page }) => {
   await page.goto('/map')
-  await expect(page.getByRole('link', { name: 'Divergence Map' })).toHaveClass(/text-blue-400/)
+  const nav = page.locator('nav')
+  await expect(nav.getByRole('link', { name: 'Map' })).toHaveClass(/text-\[var\(--accent\)\]/)
   // Other links should not be active
-  await expect(page.getByRole('link', { name: 'Dashboard' })).not.toHaveClass(/text-blue-400/)
+  await expect(nav.getByRole('link', { name: 'Dashboard' })).not.toHaveClass(/text-\[var\(--accent\)\]/)
 })
 
 test('Time Series link is highlighted when on /timeseries', async ({ page }) => {
   await page.goto('/timeseries')
-  await expect(page.getByRole('link', { name: 'Time Series' })).toHaveClass(/text-blue-400/)
+  await expect(page.getByRole('link', { name: 'Time Series' })).toHaveClass(/text-\[var\(--accent\)\]/)
 })
 
 // ---------------------------------------------------------------------------
 // Navigation via link clicks
 // ---------------------------------------------------------------------------
 
-test('clicking Divergence Map navigates to /map and loads the page', async ({ page }) => {
+test('clicking Map navigates to /map and loads the page', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('link', { name: 'Divergence Map' }).click()
+  await page.getByRole('link', { name: 'Map' }).click()
   await expect(page).toHaveURL('/map')
   // Map page shows a variable control
   await expect(page.locator('select').first()).toBeVisible()

@@ -86,7 +86,7 @@ test.describe('Dashboard – summary cards', () => {
 
   test('shows number of data points', async ({ page }) => {
     const precip = MOCK_SUMMARIES[0]
-    await expect(page.getByText(new RegExp(`${precip.num_points} data points`))).toBeVisible()
+    await expect(page.getByText(new RegExp(`${precip.num_points} points`))).toBeVisible()
   })
 })
 
@@ -112,15 +112,15 @@ test.describe('Dashboard – model runs table', () => {
   })
 
   test('complete status has a green badge', async ({ page }) => {
-    await expect(page.getByText('complete').first()).toHaveClass(/bg-green-900/)
+    await expect(page.getByText('complete').first()).toHaveClass(/badge-green/)
   })
 
   test('pending status has a yellow badge', async ({ page }) => {
-    await expect(page.getByText('pending')).toHaveClass(/bg-yellow-900/)
+    await expect(page.getByText('pending')).toHaveClass(/badge-yellow/)
   })
 
   test('error status has a red badge', async ({ page }) => {
-    await expect(page.getByText('error')).toHaveClass(/bg-red-900/)
+    await expect(page.getByText('error')).toHaveClass(/badge-red/)
   })
 
   test('shows forecast hour range for GFS', async ({ page }) => {
