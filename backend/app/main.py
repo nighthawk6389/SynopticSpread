@@ -35,12 +35,17 @@ async def _seed_initial_data():
     * Divergence is computed (and old partial results cleared) as soon as
       two or more models are available, giving the frontend data to show
       as early as possible while models are still loading.
+
+    When ``FORCE_MODEL_RELOAD`` is set, existing data is cleared and all
+    models are re-ingested regardless of what is already in the database.
     """
     from sqlalchemy import func, select
 
     from app.database import async_session
     from app.models import ModelRun
     from app.services.scheduler import _latest_cycle, ingest_and_process
+
+    force = settings.force_model_reload
 
     # Brief pause so the server is fully ready before heavy work begins.
     await asyncio.sleep(2)
@@ -49,8 +54,14 @@ async def _seed_initial_data():
         count = (await db.execute(select(func.count(ModelRun.id)))).scalar()
 
     if count and count > 0:
-        logger.info("Database already has %d model run(s) — skipping seed.", count)
-        return
+        if not force:
+            logger.info("Database already has %d model run(s) — skipping seed.", count)
+            return
+        logger.info(
+            "Database has %d model run(s) but FORCE_MODEL_RELOAD is set — "
+            "re-ingesting all models.",
+            count,
+        )
 
     models = list(_SEED_MODELS)
     if settings.ecmwf_api_key:
@@ -65,7 +76,10 @@ async def _seed_initial_data():
     for model in models:
         try:
             data = await ingest_and_process(
-                model, init_time=init_time, other_model_data=all_fetched
+                model,
+                init_time=init_time,
+                other_model_data=all_fetched,
+                force=force,
             )
             if data is not None:
                 all_fetched[model] = data
