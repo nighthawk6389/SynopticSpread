@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -7,6 +9,45 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.routers import admin, alerts, divergence, forecasts
+
+logger = logging.getLogger(__name__)
+
+# Models to seed on startup (ECMWF requires an API key so it is conditional).
+_SEED_MODELS = ["GFS", "NAM", "HRRR"]
+
+
+async def _seed_initial_data():
+    """Trigger ingestion for all models if the database has no runs yet.
+
+    Called as a background task during startup so the server is already
+    accepting requests while data is being fetched.
+    """
+    from sqlalchemy import func, select
+
+    from app.database import async_session
+    from app.models import ModelRun
+    from app.services.scheduler import ingest_and_process
+
+    # Brief pause so the server is fully ready before heavy work begins.
+    await asyncio.sleep(2)
+
+    async with async_session() as db:
+        count = (await db.execute(select(func.count(ModelRun.id)))).scalar()
+
+    if count and count > 0:
+        logger.info("Database already has %d model run(s) — skipping seed.", count)
+        return
+
+    models = list(_SEED_MODELS)
+    if settings.ecmwf_api_key:
+        models.append("ECMWF")
+
+    logger.info("Seeding initial data for models: %s", models)
+    for model in models:
+        try:
+            await ingest_and_process(model)
+        except Exception:
+            logger.exception("Seed ingestion failed for %s", model)
 
 
 @asynccontextmanager
@@ -28,7 +69,15 @@ async def lifespan(app: FastAPI):
 
         scheduler.start()
 
+    # Kick off data seeding in the background so the app starts serving immediately.
+    seed_task = None
+    if settings.seed_data_on_startup:
+        seed_task = asyncio.create_task(_seed_initial_data())
+
     yield
+
+    if seed_task and not seed_task.done():
+        seed_task.cancel()
 
     if settings.scheduler_enabled:
         from app.services.scheduler import scheduler
