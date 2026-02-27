@@ -22,6 +22,7 @@ os.environ.setdefault("SCHEDULER_ENABLED", "false")
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _mock_execute(*, scalars_all=None, scalar_one=None, one=None):
     """Return a MagicMock that mimics an SQLAlchemy AsyncResult."""
     result = MagicMock()
@@ -61,6 +62,7 @@ async def _client(session):
 # ---------------------------------------------------------------------------
 # GET /api/divergence/point
 # ---------------------------------------------------------------------------
+
 
 async def test_point_divergence_empty():
     """Returns an empty list when no PointMetric rows match."""
@@ -115,6 +117,7 @@ async def test_point_divergence_with_lead_hour_filter():
 # GET /api/divergence/grid
 # ---------------------------------------------------------------------------
 
+
 async def test_grid_divergence_not_found():
     """Returns 404 when no GridSnapshot exists for the requested variable/lead_hour."""
     session = _make_session(_mock_execute(scalar_one=None))
@@ -166,6 +169,7 @@ async def test_grid_divergence_success():
 # GET /api/divergence/grid/snapshots
 # ---------------------------------------------------------------------------
 
+
 async def test_grid_snapshots_empty():
     """Returns an empty list when no GridSnapshot rows exist."""
     session = _make_session(_mock_execute(scalars_all=[]))
@@ -200,6 +204,7 @@ async def test_grid_snapshots_returns_data():
 # GET /api/divergence/summary
 # ---------------------------------------------------------------------------
 
+
 async def test_divergence_summary_empty():
     """Returns an empty list when no PointMetric rows exist."""
     empty_row = MagicMock()
@@ -217,6 +222,7 @@ async def test_divergence_summary_empty():
 
 async def test_divergence_summary_with_data():
     """Returns one DivergenceSummary entry for each variable that has data."""
+
     def _row(num_points, mean_spread=None, max_spread=None):
         row = MagicMock()
         row.num_points = num_points
@@ -233,9 +239,9 @@ async def test_divergence_summary_with_data():
     # Four variables: precip has data, others do not
     session.execute.side_effect = [
         _result(_row(10, 1.5, 3.0)),  # precip
-        _result(_row(0)),             # wind_speed
-        _result(_row(0)),             # mslp
-        _result(_row(0)),             # hgt_500
+        _result(_row(0)),  # wind_speed
+        _result(_row(0)),  # mslp
+        _result(_row(0)),  # hgt_500
     ]
 
     async with _client(session) as c:
@@ -254,6 +260,7 @@ async def test_divergence_summary_with_data():
 # ---------------------------------------------------------------------------
 # GET /api/runs
 # ---------------------------------------------------------------------------
+
 
 async def test_list_runs_empty():
     """Returns an empty list when no ModelRun rows exist."""

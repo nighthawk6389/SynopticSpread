@@ -151,15 +151,13 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
                                         # Look up run IDs
                                         run_a = await db.execute(
                                             select(ModelRun).where(
-                                                ModelRun.model_name
-                                                == pair["model_a"],
+                                                ModelRun.model_name == pair["model_a"],
                                                 ModelRun.init_time == init_time,
                                             )
                                         )
                                         run_b = await db.execute(
                                             select(ModelRun).where(
-                                                ModelRun.model_name
-                                                == pair["model_b"],
+                                                ModelRun.model_name == pair["model_b"],
                                                 ModelRun.init_time == init_time,
                                             )
                                         )
@@ -178,9 +176,7 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
                                                 spread=spread,
                                             )
                                             db.add(pm)
-                                            latest_rmse = max(
-                                                latest_rmse, pair["rmse"]
-                                            )
+                                            latest_rmse = max(latest_rmse, pair["rmse"])
                                             latest_bias = pair["bias"]
                                         # Accumulate per-model raw values
                                         if ra and pair["model_a"] not in model_runs:

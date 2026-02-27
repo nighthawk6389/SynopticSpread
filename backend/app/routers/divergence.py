@@ -86,9 +86,7 @@ async def list_grid_snapshots(
     limit: int = Query(20, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = (
-        select(GridSnapshot).order_by(GridSnapshot.init_time.desc()).limit(limit)
-    )
+    stmt = select(GridSnapshot).order_by(GridSnapshot.init_time.desc()).limit(limit)
     if variable:
         stmt = stmt.where(GridSnapshot.variable == variable)
     result = await db.execute(stmt)
@@ -111,15 +109,12 @@ async def get_divergence_summary(
     summaries = []
 
     for var in variables:
-        stmt = (
-            select(
-                func.avg(PointMetric.spread).label("mean_spread"),
-                func.max(PointMetric.spread).label("max_spread"),
-                func.min(PointMetric.spread).label("min_spread"),
-                func.count(PointMetric.id).label("num_points"),
-            )
-            .where(PointMetric.variable == var)
-        )
+        stmt = select(
+            func.avg(PointMetric.spread).label("mean_spread"),
+            func.max(PointMetric.spread).label("max_spread"),
+            func.min(PointMetric.spread).label("min_spread"),
+            func.count(PointMetric.id).label("num_points"),
+        ).where(PointMetric.variable == var)
         if lat is not None and lon is not None:
             stmt = stmt.where(
                 PointMetric.lat.between(lat - 0.5, lat + 0.5),
@@ -150,7 +145,8 @@ async def get_regional_divergence(
     lead_hour: int = Query(0),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return latest spread/rmse/bias at each monitor point for regional map coloring."""
+    """Return latest spread/rmse/bias at each monitor point
+    for regional map coloring."""
     from app.config import settings
 
     results = []
@@ -168,14 +164,16 @@ async def get_regional_divergence(
         )
         result = await db.execute(stmt)
         metric = result.scalar_one_or_none()
-        results.append({
-            "lat": lat,
-            "lon": lon,
-            "label": label,
-            "spread": metric.spread if metric else None,
-            "rmse": metric.rmse if metric else None,
-            "bias": metric.bias if metric else None,
-        })
+        results.append(
+            {
+                "lat": lat,
+                "lon": lon,
+                "label": label,
+                "spread": metric.spread if metric else None,
+                "rmse": metric.rmse if metric else None,
+                "bias": metric.bias if metric else None,
+            }
+        )
     return results
 
 
@@ -262,7 +260,8 @@ async def get_decomposition(
     limit: int = Query(100, le=500),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return per-model-pair RMSE/bias grouped by lead hour for ensemble decomposition."""
+    """Return per-model-pair RMSE/bias grouped by lead hour
+    for ensemble decomposition."""
     from collections import defaultdict
 
     # Fetch point metrics with their associated model run names
@@ -283,8 +282,7 @@ async def get_decomposition(
         .order_by(PointMetric.created_at.desc())
         .limit(limit)
     )
-    result = await db.execute(stmt)
-    rows_a = result.all()
+    await db.execute(stmt)
 
     # Also get model_b names
     stmt_b = (
@@ -306,7 +304,13 @@ async def get_decomposition(
 
     # Also get the IDs from a separate query
     stmt_ids = (
-        select(PointMetric.id, PointMetric.lead_hour, PointMetric.rmse, PointMetric.bias, PointMetric.spread)
+        select(
+            PointMetric.id,
+            PointMetric.lead_hour,
+            PointMetric.rmse,
+            PointMetric.bias,
+            PointMetric.spread,
+        )
         .where(
             PointMetric.variable == variable,
             PointMetric.lat.between(lat - 0.5, lat + 0.5),
@@ -341,7 +345,9 @@ async def get_decomposition(
         fhr = row.lead_hour
         model_a = a_names.get(row.id, "?")
         model_b = b_names.get(row.id, "?")
-        pair_key = f"{model_a}-{model_b}" if model_a < model_b else f"{model_b}-{model_a}"
+        pair_key = (
+            f"{model_a}-{model_b}" if model_a < model_b else f"{model_b}-{model_a}"
+        )
 
         if pair_key in seen_hours[fhr]:
             continue

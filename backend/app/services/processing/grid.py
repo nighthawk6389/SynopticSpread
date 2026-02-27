@@ -9,7 +9,11 @@ import xarray as xr
 logger = logging.getLogger(__name__)
 
 
-def _to_regular_grid(da: xr.DataArray, common_lat: np.ndarray, common_lon: np.ndarray) -> xr.DataArray:
+def _to_regular_grid(
+    da: xr.DataArray,
+    common_lat: np.ndarray,
+    common_lon: np.ndarray,
+) -> xr.DataArray:
     """Interpolate a DataArray onto a regular lat/lon grid.
 
     Handles both 1-D index coordinates (regular grids like GFS) and 2-D
@@ -49,10 +53,11 @@ def regrid_to_common(
     variable: str,
     resolution: float = 0.25,
 ) -> dict[str, xr.DataArray]:
-    """Regrid all model fields to a common lat/lon grid via nearest-neighbor interpolation.
+    """Regrid all model fields to a common lat/lon grid.
 
-    Handles regular 1-D grids (GFS) and 2-D projected grids (NAM CONUSNEST).
-    Uses the intersection of all model bounding boxes at the given resolution.
+    Uses nearest-neighbor interpolation. Handles regular 1-D grids (GFS)
+    and 2-D projected grids (NAM CONUSNEST). Uses the intersection of all
+    model bounding boxes at the given resolution.
     """
     lat_mins, lat_maxs, lon_mins, lon_maxs = [], [], [], []
     for ds in datasets.values():

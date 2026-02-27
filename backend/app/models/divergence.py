@@ -39,7 +39,11 @@ class ModelPointValue(Base):
     __tablename__ = "model_point_values"
     __table_args__ = (
         UniqueConstraint(
-            "run_id", "variable", "lat", "lon", "lead_hour",
+            "run_id",
+            "variable",
+            "lat",
+            "lon",
+            "lead_hour",
             name="uq_mpv_run_var_loc_fhr",
         ),
     )

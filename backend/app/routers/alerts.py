@@ -26,9 +26,7 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 @router.get("/rules", response_model=list[AlertRuleOut])
 async def list_rules(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(AlertRule).order_by(AlertRule.created_at.desc())
-    )
+    result = await db.execute(select(AlertRule).order_by(AlertRule.created_at.desc()))
     return result.scalars().all()
 
 
