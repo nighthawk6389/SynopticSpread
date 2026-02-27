@@ -40,7 +40,9 @@ services:
 
     envVars:
       - key: DATABASE_URL
-        value: "postgresql://synoptic:BaqxwNajgqsz9Wy10jjdLcnH9ludsLvE@dpg-d6gnul24d50c73er5o3g-a/synoptic"
+        fromDatabase:
+          name: synopticspread-db
+          property: connectionString
 
       # On first boot, create all ORM tables automatically.
       - key: DATABASE_AUTO_CREATE
