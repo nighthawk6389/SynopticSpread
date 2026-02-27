@@ -60,8 +60,23 @@ async def lifespan(app: FastAPI):
     if settings.database_auto_create:
         from app.database import Base, engine
 
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        # On managed platforms (e.g. Render) the database may still be
+        # starting when the web service boots.  Retry with backoff.
+        for attempt in range(5):
+            try:
+                async with engine.begin() as conn:
+                    await conn.run_sync(Base.metadata.create_all)
+                break
+            except Exception:
+                if attempt == 4:
+                    raise
+                wait = 2 ** attempt  # 1, 2, 4, 8, 16 s
+                logger.warning(
+                    "Database not ready (attempt %d/5) — retrying in %ds",
+                    attempt + 1,
+                    wait,
+                )
+                await asyncio.sleep(wait)
 
     # Start the ingestion scheduler if enabled.
     if settings.scheduler_enabled:

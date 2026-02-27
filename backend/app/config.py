@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +13,22 @@ class Settings(BaseSettings):
     database_url: str = (
         "postgresql+asyncpg://synoptic:synoptic@localhost:5432/synopticspread"
     )
+
+    @model_validator(mode="after")
+    def _normalize_database_url(self) -> "Settings":
+        """Ensure the database URL uses the asyncpg driver.
+
+        Render (and other providers) supply ``postgres://`` or
+        ``postgresql://`` connection strings.  SQLAlchemy's async engine
+        requires the ``postgresql+asyncpg://`` scheme.
+        """
+        url = self.database_url
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        self.database_url = url
+        return self
     ecmwf_api_key: str = ""
     ecmwf_api_url: str = "https://cds.climate.copernicus.eu/api"
     data_store_path: Path = Path("./data")
