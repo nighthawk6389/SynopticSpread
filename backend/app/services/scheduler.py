@@ -189,16 +189,18 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
                                             model_values[pair["model_b"]] = pair[
                                                 "val_b"
                                             ]
-                                    # Persist raw per-model values
-                                    for model_nm, model_run_obj in model_runs.items():
+                                    # Persist raw per-model values (only for
+                                    # the model being ingested — other models
+                                    # already saved theirs during their own pass)
+                                    if model_name in model_runs:
                                         db.add(
                                             ModelPointValue(
-                                                run_id=model_run_obj.id,
+                                                run_id=model_runs[model_name].id,
                                                 variable=var,
                                                 lat=lat,
                                                 lon=lon,
                                                 lead_hour=fhr,
-                                                value=model_values[model_nm],
+                                                value=model_values[model_name],
                                             )
                                         )
 
