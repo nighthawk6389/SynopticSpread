@@ -1,7 +1,16 @@
+import logging
+import re
 from pathlib import Path
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
+
+
+def _redact_url(url: str) -> str:
+    """Replace the password in a database URL with '***'."""
+    return re.sub(r"://([^:]+):([^@]+)@", r"://\1:***@", url)
 
 
 class Settings(BaseSettings):
@@ -23,11 +32,13 @@ class Settings(BaseSettings):
         requires the ``postgresql+asyncpg://`` scheme.
         """
         url = self.database_url
+        logger.info("DATABASE_URL raw value: %s", _redact_url(url))
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql+asyncpg://", 1)
         elif url.startswith("postgresql://"):
             url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
         self.database_url = url
+        logger.info("DATABASE_URL after normalization: %s", _redact_url(url))
         return self
     ecmwf_api_key: str = ""
     ecmwf_api_url: str = "https://cds.climate.copernicus.eu/api"
