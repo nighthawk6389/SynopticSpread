@@ -20,6 +20,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://synoptic:synoptic@db:5432/synopticspread
       DATA_STORE_PATH: /data
       SCHEDULER_ENABLED: "true"
+      SEED_DATA_ON_STARTUP: "true"
     volumes:
       - model_data:/data
     depends_on:

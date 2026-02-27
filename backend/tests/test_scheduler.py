@@ -24,6 +24,7 @@ if "herbie" not in sys.modules:
 # _latest_cycle – pure function
 # ---------------------------------------------------------------------------
 
+
 def test_latest_cycle_returns_six_hour_boundary():
     """The cycle time always falls on a 6-hour boundary with zeroed minutes/seconds."""
     from app.services.scheduler import _latest_cycle
@@ -51,6 +52,7 @@ def test_latest_cycle_rounds_down():
 # ---------------------------------------------------------------------------
 # ingest_and_process – idempotency
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_ingest_skips_already_processed_run():
@@ -81,6 +83,7 @@ async def test_ingest_skips_already_processed_run():
 # ---------------------------------------------------------------------------
 # ingest_and_process – error handling
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_ingest_sets_error_status_on_fetch_failure():

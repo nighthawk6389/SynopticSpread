@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 
 NAM_SEARCH = {
     "precip": ":APCP:surface:",  # NAM uses "3-6 hour acc" format, not "0-X"
-    "wind_uv": ":(UGRD|VGRD):10 m above ground",  # shared byte range — must fetch together
+    # shared byte range -- must fetch together
+    "wind_uv": ":(UGRD|VGRD):10 m above ground",
     "mslp": ":PRMSL:mean sea level",
     "hgt_500": ":HGT:500 mb",
 }

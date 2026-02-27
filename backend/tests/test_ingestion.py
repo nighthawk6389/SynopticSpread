@@ -23,6 +23,7 @@ if "herbie" not in sys.modules:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _da(name: str, value: float) -> xr.DataArray:
     """Return a tiny synthetic DataArray."""
     lat = np.array([39.0, 40.0])
@@ -60,6 +61,7 @@ INIT_TIME = datetime(2024, 1, 1, 0, 0)
 # ModelFetcher.compute_wind_speed  (base-class static method, no external deps)
 # ---------------------------------------------------------------------------
 
+
 def test_compute_wind_speed():
     """Wind speed equals sqrt(u² + v²) — 3-4-5 triangle."""
     from app.services.ingestion.base import ModelFetcher
@@ -72,6 +74,7 @@ def test_compute_wind_speed():
 # ---------------------------------------------------------------------------
 # GFSFetcher
 # ---------------------------------------------------------------------------
+
 
 def test_gfs_fetches_non_wind_variable():
     """GFSFetcher correctly extracts a non-wind variable from a Herbie dataset."""
@@ -91,10 +94,12 @@ def test_gfs_computes_wind_speed_from_components():
     compute_wind_speed."""
     from app.services.ingestion.gfs import GFSFetcher
 
-    herbie_inst = _herbie_for({
-        ":UGRD:": _ds("u10", 3.0),
-        ":VGRD:": _ds("v10", 4.0),
-    })
+    herbie_inst = _herbie_for(
+        {
+            ":UGRD:": _ds("u10", 3.0),
+            ":VGRD:": _ds("v10", 4.0),
+        }
+    )
     with patch("app.services.ingestion.gfs.Herbie", return_value=herbie_inst):
         result = GFSFetcher().fetch(INIT_TIME, variables=["wind_speed"], lead_hours=[0])
 
@@ -130,6 +135,7 @@ def test_gfs_failed_lead_hour_is_skipped():
 # NAMFetcher
 # ---------------------------------------------------------------------------
 
+
 def test_nam_fetches_requested_variable():
     """NAMFetcher returns only the variables that were requested."""
     from app.services.ingestion.nam import NAMFetcher
@@ -147,6 +153,7 @@ def test_nam_fetches_requested_variable():
 # ECMWFFetcher
 # ---------------------------------------------------------------------------
 
+
 def test_ecmwf_init_graceful_when_cdsapi_unavailable():
     """ECMWFFetcher sets client=None when cdsapi.Client() raises."""
     mock_cdsapi = MagicMock()
@@ -156,6 +163,7 @@ def test_ecmwf_init_graceful_when_cdsapi_unavailable():
         import importlib
 
         import app.services.ingestion.ecmwf as ecmwf_mod
+
         importlib.reload(ecmwf_mod)
         fetcher = ecmwf_mod.ECMWFFetcher()
 

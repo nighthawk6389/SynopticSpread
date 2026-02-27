@@ -53,9 +53,7 @@ async def get_run_metrics(run_id: uuid.UUID, db: AsyncSession = Depends(get_db))
         raise HTTPException(404, "Run not found")
     stmt = (
         select(PointMetric)
-        .where(
-            or_(PointMetric.run_a_id == run_id, PointMetric.run_b_id == run_id)
-        )
+        .where(or_(PointMetric.run_a_id == run_id, PointMetric.run_b_id == run_id))
         .order_by(PointMetric.variable, PointMetric.lead_hour)
     )
     result = await db.execute(stmt)

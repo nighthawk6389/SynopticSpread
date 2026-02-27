@@ -41,6 +41,7 @@ def _grid_dataset(variable: str, value: float) -> xr.Dataset:
 # Zarr save / load round-trip
 # ---------------------------------------------------------------------------
 
+
 def test_zarr_roundtrip_preserves_values(tmp_path):
     """Saving and reloading a divergence array produces identical values."""
     original = _divergence_array(2.5)
@@ -78,6 +79,7 @@ def test_zarr_lead_hour_zero_padded(tmp_path):
 # regrid_to_common – edge cases
 # ---------------------------------------------------------------------------
 
+
 def test_regrid_missing_variable_returns_empty():
     """Returns {} when none of the datasets contain the requested variable."""
     datasets = {
@@ -102,6 +104,7 @@ def test_regrid_partial_missing_variable():
 # ---------------------------------------------------------------------------
 # compute_grid_divergence – existing test improved
 # ---------------------------------------------------------------------------
+
 
 def test_divergence_requires_two_models():
     """Raises ValueError when fewer than two datasets are supplied."""

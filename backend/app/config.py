@@ -9,7 +9,9 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
     )
 
-    database_url: str = "postgresql+asyncpg://synoptic:synoptic@localhost:5432/synopticspread"
+    database_url: str = (
+        "postgresql+asyncpg://synoptic:synoptic@localhost:5432/synopticspread"
+    )
     ecmwf_api_key: str = ""
     ecmwf_api_url: str = "https://cds.climate.copernicus.eu/api"
     data_store_path: Path = Path("./data")
@@ -18,6 +20,8 @@ class Settings(BaseSettings):
     database_auto_create: bool = False
     # Origins allowed by the CORS middleware (comma-separated list or JSON array).
     allowed_origins: list[str] = ["http://localhost:5173"]
+    # Trigger ingestion for all models on startup when no data exists yet.
+    seed_data_on_startup: bool = False
     # Alerting
     alert_webhook_url: str = ""
     alert_check_enabled: bool = True

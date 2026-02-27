@@ -114,9 +114,7 @@ class ECMWFFetcher(ModelFetcher):
                     elif var == "mslp" and "msl" in sl_ds:
                         arrays["mslp"] = sl_ds["msl"]
                     elif var == "hgt_500" and pl_ds is not None and "z" in pl_ds:
-                        arrays["hgt_500"] = pl_ds["z"].sel(
-                            isobaricInhPa=500, drop=True
-                        )
+                        arrays["hgt_500"] = pl_ds["z"].sel(isobaricInhPa=500, drop=True)
 
                 results[0] = xr.Dataset(arrays)
                 logger.info("ECMWF analysis fetched successfully")

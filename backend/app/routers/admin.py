@@ -54,11 +54,19 @@ async def get_status():
     async with async_session() as db:
         run_count = (await db.execute(select(func.count(ModelRun.id)))).scalar()
         metric_count = (await db.execute(select(func.count(PointMetric.id)))).scalar()
-        snapshot_count = (await db.execute(select(func.count(GridSnapshot.id)))).scalar()
+        snapshot_count = (
+            await db.execute(select(func.count(GridSnapshot.id)))
+        ).scalar()
 
         runs = (
-            await db.execute(select(ModelRun).order_by(ModelRun.created_at.desc()).limit(10))
-        ).scalars().all()
+            (
+                await db.execute(
+                    select(ModelRun).order_by(ModelRun.created_at.desc()).limit(10)
+                )
+            )
+            .scalars()
+            .all()
+        )
 
     zarr_dir = settings.data_store_path / "divergence"
     zarr_files = list(zarr_dir.rglob("*.zarr")) if zarr_dir.exists() else []
@@ -103,7 +111,10 @@ async def trigger_ingestion(req: TriggerRequest, background_tasks: BackgroundTas
         model=model,
         init_time=init_time.isoformat(),
         status="queued",
-        message=f"{model} ingestion for {init_time.isoformat()} queued. Poll GET /api/admin/status.",
+        message=(
+            f"{model} ingestion for {init_time.isoformat()}"
+            " queued. Poll GET /api/admin/status."
+        ),
     )
 
 
@@ -128,7 +139,10 @@ async def clear_metrics():
     return {"deleted_metrics": result.rowcount}
 
 
-@router.delete("/snapshots", summary="Delete grid snapshot records and Zarr files on disk")
+@router.delete(
+    "/snapshots",
+    summary="Delete grid snapshot records and Zarr files on disk",
+)
 async def clear_snapshots():
     async with async_session() as db:
         result = await db.execute(delete(GridSnapshot))
@@ -151,7 +165,10 @@ async def clear_cache():
     return {"deleted_cache_files": deleted}
 
 
-@router.delete("/reset", summary="Full reset: clear all DB records, Zarr files, and GRIB cache")
+@router.delete(
+    "/reset",
+    summary="Full reset: clear all DB records, Zarr files, and GRIB cache",
+)
 async def reset_all():
     async with async_session() as db:
         metrics = (await db.execute(delete(PointMetric))).rowcount

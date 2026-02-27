@@ -145,14 +145,16 @@ async def test_grid_snapshot_bbox_json_round_trip(db):
 
 async def test_multiple_runs_queryable_by_model_name(db):
     """Multiple ModelRun rows can be filtered by model_name."""
-    db.add_all([
-        _run(model_name="GFS"), _run(model_name="NAM"), _run(model_name="ECMWF"),
-    ])
+    db.add_all(
+        [
+            _run(model_name="GFS"),
+            _run(model_name="NAM"),
+            _run(model_name="ECMWF"),
+        ]
+    )
     await db.commit()
 
-    result = await db.execute(
-        select(ModelRun).where(ModelRun.model_name == "NAM")
-    )
+    result = await db.execute(select(ModelRun).where(ModelRun.model_name == "NAM"))
     rows = result.scalars().all()
     assert len(rows) == 1
     assert rows[0].model_name == "NAM"
@@ -164,6 +166,7 @@ async def test_multiple_runs_queryable_by_model_name(db):
 
 
 # --- /api/runs ---
+
 
 async def test_get_runs_empty_database(http_client):
     """/api/runs returns an empty list when no rows exist."""
@@ -210,10 +213,12 @@ async def test_get_runs_model_name_filter_is_case_insensitive(http_client, db):
 
 async def test_get_runs_ordered_newest_first(http_client, db):
     """Runs are returned in descending init_time order."""
-    db.add_all([
-        _run(model_name="OLD", init_time=_utc(2024, 1, 14)),
-        _run(model_name="NEW", init_time=_utc(2024, 1, 15)),
-    ])
+    db.add_all(
+        [
+            _run(model_name="OLD", init_time=_utc(2024, 1, 14)),
+            _run(model_name="NEW", init_time=_utc(2024, 1, 15)),
+        ]
+    )
     await db.commit()
 
     names = [r["model_name"] for r in (await http_client.get("/api/runs")).json()]
@@ -222,10 +227,12 @@ async def test_get_runs_ordered_newest_first(http_client, db):
 
 async def test_get_runs_since_filter(http_client, db):
     """since query parameter excludes runs with earlier init_time."""
-    db.add_all([
-        _run(model_name="OLD", init_time=_utc(2024, 1, 13)),
-        _run(model_name="NEW", init_time=_utc(2024, 1, 15)),
-    ])
+    db.add_all(
+        [
+            _run(model_name="OLD", init_time=_utc(2024, 1, 13)),
+            _run(model_name="NEW", init_time=_utc(2024, 1, 15)),
+        ]
+    )
     await db.commit()
 
     resp = await http_client.get("/api/runs?since=2024-01-14T00:00:00Z")
@@ -235,6 +242,7 @@ async def test_get_runs_since_filter(http_client, db):
 
 
 # --- /api/divergence/point ---
+
 
 async def test_get_point_divergence_returns_metric(http_client, db):
     """Point divergence metrics are returned when the query coordinates match."""
@@ -264,10 +272,12 @@ async def test_get_point_divergence_excludes_distant_point(http_client, db):
     db.add_all([run_a, run_b])
     await db.commit()
 
-    db.add_all([
-        _metric(run_a_id=run_a.id, run_b_id=run_b.id, lat=40.71, lon=-74.01),
-        _metric(run_a_id=run_a.id, run_b_id=run_b.id, lat=34.05, lon=-118.24),
-    ])
+    db.add_all(
+        [
+            _metric(run_a_id=run_a.id, run_b_id=run_b.id, lat=40.71, lon=-74.01),
+            _metric(run_a_id=run_a.id, run_b_id=run_b.id, lat=34.05, lon=-118.24),
+        ]
+    )
     await db.commit()
 
     resp = await http_client.get(
@@ -285,10 +295,12 @@ async def test_get_point_divergence_lead_hour_filter(http_client, db):
     db.add_all([run_a, run_b])
     await db.commit()
 
-    db.add_all([
-        _metric(run_a_id=run_a.id, run_b_id=run_b.id, lead_hour=0),
-        _metric(run_a_id=run_a.id, run_b_id=run_b.id, lead_hour=24),
-    ])
+    db.add_all(
+        [
+            _metric(run_a_id=run_a.id, run_b_id=run_b.id, lead_hour=0),
+            _metric(run_a_id=run_a.id, run_b_id=run_b.id, lead_hour=24),
+        ]
+    )
     await db.commit()
 
     resp = await http_client.get(
@@ -317,6 +329,7 @@ async def test_get_point_divergence_empty_when_variable_mismatch(http_client, db
 
 
 # --- /api/divergence/summary ---
+
 
 async def test_divergence_summary_includes_variable_with_data(http_client, db):
     """A variable that has PointMetric rows appears in the summary."""
@@ -357,10 +370,16 @@ async def test_divergence_summary_computes_correct_aggregates(http_client, db):
     db.add_all([run_a, run_b])
     await db.commit()
 
-    db.add_all([
-        _metric(run_a_id=run_a.id, run_b_id=run_b.id, variable="precip", spread=1.0),
-        _metric(run_a_id=run_a.id, run_b_id=run_b.id, variable="precip", spread=3.0),
-    ])
+    db.add_all(
+        [
+            _metric(
+                run_a_id=run_a.id, run_b_id=run_b.id, variable="precip", spread=1.0
+            ),
+            _metric(
+                run_a_id=run_a.id, run_b_id=run_b.id, variable="precip", spread=3.0
+            ),
+        ]
+    )
     await db.commit()
 
     resp = await http_client.get("/api/divergence/summary")
@@ -372,6 +391,7 @@ async def test_divergence_summary_computes_correct_aggregates(http_client, db):
 
 
 # --- /api/divergence/grid/snapshots ---
+
 
 async def test_list_grid_snapshots_returns_inserted_data(http_client, db):
     """Inserted GridSnapshot rows appear in the snapshots list endpoint."""
@@ -405,6 +425,7 @@ async def test_list_grid_snapshots_empty_database(http_client):
 
 
 # --- /api/divergence/grid ---
+
 
 async def test_get_grid_divergence_404_when_no_snapshot(http_client):
     """Returns 404 when no GridSnapshot matches the requested variable/lead_hour."""

@@ -15,7 +15,9 @@ def extract_point(ds: xr.Dataset, variable: str, lat: float, lon: float) -> floa
     lon_coord = da.coords.get("longitude")
 
     if lat_coord is None or lon_coord is None:
-        raise ValueError(f"Dataset for {variable} has no latitude/longitude coordinates")
+        raise ValueError(
+            f"Dataset for {variable} has no latitude/longitude coordinates"
+        )
 
     # 1-D case: latitude and longitude are index dimensions — use fast .sel()
     if lat_coord.ndim == 1:
