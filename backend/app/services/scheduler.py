@@ -32,8 +32,61 @@ def _latest_cycle(
     return adjusted.replace(hour=cycle_hour, minute=0, second=0, microsecond=0)
 
 
-async def ingest_and_process(model_name: str, init_time: datetime | None = None):
-    """Fetch model data, compute divergence metrics, and store results."""
+async def _clear_divergence_for_init_time(db, init_time: datetime):
+    """Remove existing divergence data for an init_time before recomputing.
+
+    This prevents stale partial results (e.g. 2-model divergence) from
+    coexisting with newer complete results (e.g. 3-model divergence) when
+    models are loaded incrementally during startup seeding.
+    """
+    from sqlalchemy import delete, or_, select
+
+    from app.models import GridSnapshot, ModelPointValue, ModelRun, PointMetric
+
+    run_ids_result = await db.execute(
+        select(ModelRun.id).where(ModelRun.init_time == init_time)
+    )
+    run_ids = list(run_ids_result.scalars().all())
+
+    if run_ids:
+        await db.execute(
+            delete(PointMetric).where(
+                or_(
+                    PointMetric.run_a_id.in_(run_ids),
+                    PointMetric.run_b_id.in_(run_ids),
+                )
+            )
+        )
+        await db.execute(
+            delete(ModelPointValue).where(ModelPointValue.run_id.in_(run_ids))
+        )
+
+    await db.execute(
+        delete(GridSnapshot).where(GridSnapshot.init_time == init_time)
+    )
+
+
+async def ingest_and_process(
+    model_name: str,
+    init_time: datetime | None = None,
+    other_model_data: dict[str, dict] | None = None,
+) -> dict | None:
+    """Fetch model data, compute divergence metrics, and store results.
+
+    Parameters
+    ----------
+    other_model_data : dict, optional
+        Pre-fetched datasets from other models keyed by model name.  When
+        provided these are used for cross-model divergence instead of
+        re-fetching from external sources.  Used during startup seeding
+        so each model is only downloaded once.
+
+    Returns
+    -------
+    dict or None
+        The fetched data for this model (``{lead_hour: xr.Dataset}``),
+        or ``None`` if the model was already ingested.
+    """
     from sqlalchemy import select
 
     from app.database import async_session
@@ -78,7 +131,7 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
             )
             if existing.scalar_one_or_none():
                 logger.info("%s %s already ingested, skipping", model_name, init_time)
-                return
+                return None
 
             # Create pending run record
             run = ModelRun(
@@ -96,32 +149,39 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
                 data = await asyncio.to_thread(fetcher.fetch, init_time)
                 run.forecast_hours = sorted(data.keys())
 
-                # Fetch other available models for cross-model divergence
+                # Gather other available models for cross-model divergence.
                 all_model_data: dict[str, dict[int, object]] = {model_name: data}
-                for other_name, other_cls in fetchers.items():
-                    if other_name == model_name:
-                        continue
-                    other_run = await db.execute(
-                        select(ModelRun).where(
-                            ModelRun.model_name == other_name,
-                            ModelRun.init_time == init_time,
-                            ModelRun.status == RunStatus.complete,
+                if other_model_data:
+                    # Use pre-fetched data (avoids redundant downloads during seed).
+                    all_model_data.update(other_model_data)
+                else:
+                    for other_name, other_cls in fetchers.items():
+                        if other_name == model_name:
+                            continue
+                        other_run = await db.execute(
+                            select(ModelRun).where(
+                                ModelRun.model_name == other_name,
+                                ModelRun.init_time == init_time,
+                                ModelRun.status == RunStatus.complete,
+                            )
                         )
-                    )
-                    if other_run.scalar_one_or_none():
-                        try:
-                            other_data = await asyncio.to_thread(
-                                other_cls().fetch, init_time
-                            )
-                            all_model_data[other_name] = other_data
-                        except Exception:
-                            logger.warning(
-                                "Could not fetch %s for comparison", other_name
-                            )
+                        if other_run.scalar_one_or_none():
+                            try:
+                                other_data = await asyncio.to_thread(
+                                    other_cls().fetch, init_time
+                                )
+                                all_model_data[other_name] = other_data
+                            except Exception:
+                                logger.warning(
+                                    "Could not fetch %s for comparison", other_name
+                                )
 
                 # Compute divergence for common lead hours
                 variables = ["precip", "wind_speed", "mslp", "hgt_500"]
                 if len(all_model_data) >= 2:
+                    # Clear any partial divergence from earlier passes so results
+                    # always reflect the full set of available models.
+                    await _clear_divergence_for_init_time(db, init_time)
                     common_hours = set(data.keys())
                     for other_data in all_model_data.values():
                         common_hours &= set(other_data.keys())
@@ -272,10 +332,13 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
                 await db.commit()
                 logger.info("%s %s ingestion complete", model_name, init_time)
 
+                return data
+
             except Exception:
                 logger.exception("%s ingestion failed", model_name)
                 run.status = RunStatus.error
                 await db.commit()
+                return None
 
 
 # Register cron jobs: GFS/NAM/HRRR every 6 hours, ECMWF once daily.

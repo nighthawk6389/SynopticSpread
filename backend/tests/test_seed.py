@@ -100,7 +100,7 @@ async def test_seed_continues_on_individual_model_failure():
     mock_cm.__aenter__ = AsyncMock(return_value=mock_db)
     mock_cm.__aexit__ = AsyncMock(return_value=False)
 
-    async def _ingest_side_effect(model):
+    async def _ingest_side_effect(model, **kwargs):
         if model == "GFS":
             raise RuntimeError("GFS failed")
 

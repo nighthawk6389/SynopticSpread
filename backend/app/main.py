@@ -27,12 +27,20 @@ async def _seed_initial_data():
 
     Called as a background task during startup so the server is already
     accepting requests while data is being fetched.
+
+    Each model's fetched data is kept in memory and passed to the next
+    ingestion call via ``other_model_data`` so that:
+
+    * No model is re-downloaded from NOMADS for cross-model divergence.
+    * Divergence is computed (and old partial results cleared) as soon as
+      two or more models are available, giving the frontend data to show
+      as early as possible while models are still loading.
     """
     from sqlalchemy import func, select
 
     from app.database import async_session
     from app.models import ModelRun
-    from app.services.scheduler import ingest_and_process
+    from app.services.scheduler import _latest_cycle, ingest_and_process
 
     # Brief pause so the server is fully ready before heavy work begins.
     await asyncio.sleep(2)
@@ -48,12 +56,29 @@ async def _seed_initial_data():
     if settings.ecmwf_api_key:
         models.append("ECMWF")
 
-    logger.info("Seeding initial data for models: %s", models)
+    # Pin a single init_time so all models share the same forecast cycle and
+    # can be compared for divergence.
+    init_time = _latest_cycle()
+    all_fetched: dict[str, dict] = {}
+
+    logger.info("Seeding initial data for models: %s (cycle %s)", models, init_time)
     for model in models:
         try:
-            await ingest_and_process(model)
+            data = await ingest_and_process(
+                model, init_time=init_time, other_model_data=all_fetched
+            )
+            if data is not None:
+                all_fetched[model] = data
         except Exception:
             logger.exception("Seed ingestion failed for %s", model)
+
+    n_models = len(all_fetched)
+    logger.info(
+        "Seed complete: %d/%d models loaded, divergence %s",
+        n_models,
+        len(models),
+        "computed" if n_models >= 2 else "skipped (need 2+ models)",
+    )
 
 
 @asynccontextmanager
