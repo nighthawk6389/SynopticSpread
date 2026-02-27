@@ -2,7 +2,7 @@
 
 import logging
 import shutil
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
@@ -11,6 +11,7 @@ from sqlalchemy import delete, func, select
 from app.config import settings
 from app.database import async_session
 from app.models import GridSnapshot, ModelRun, PointMetric
+from app.services.scheduler import _latest_cycle
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +30,6 @@ class TriggerResponse(BaseModel):
     init_time: str
     status: str
     message: str
-
-
-def _latest_cycle() -> datetime:
-    now = datetime.now(timezone.utc)
-    cycle_hour = (now.hour // 6) * 6
-    return now.replace(hour=cycle_hour, minute=0, second=0, microsecond=0)
 
 
 async def _run_ingestion(model: str, init_time: datetime):

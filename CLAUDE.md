@@ -99,7 +99,7 @@ FastAPI detects `frontend_dist/` at startup and mounts it as static files, so th
 
 ### Data flow
 
-The scheduler (`app/services/scheduler.py`) fires APScheduler cron jobs at 01:15 UTC for HRRR, 01:30/07:30/13:30/19:30 UTC for GFS/NAM, and 14:00 UTC for ECMWF. Each job calls `ingest_and_process(model_name)`, which:
+The scheduler (`app/services/scheduler.py`) fires APScheduler cron jobs at 05:15/11:15/17:15/23:15 UTC for HRRR, 05:30/11:30/17:30/23:30 UTC for GFS, 05:45/11:45/17:45/23:45 UTC for NAM, and 14:00 UTC for ECMWF. These times are ~5 hours after each 6-hourly model cycle (00/06/12/18Z) to allow for NOMADS data publication. Each job calls `ingest_and_process(model_name)`, which:
 
 1. Fetches GRIB2 data via a `ModelFetcher` subclass → returns `dict[lead_hour, xr.Dataset]`
 2. Computes pairwise RMSE/bias at each configured monitor point (`settings.monitor_points`) → stored as `PointMetric` rows in PostgreSQL
