@@ -7,6 +7,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+# Configure logging early so app.* loggers are visible in Render logs.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)-5s [%(name)s] %(message)s",
+)
+
 from app.config import settings
 from app.routers import admin, alerts, divergence, forecasts
 
@@ -55,6 +61,17 @@ async def lifespan(app: FastAPI):
     # Ensure the data directory exists.
     settings.data_store_path.mkdir(parents=True, exist_ok=True)
 
+    # Log the final database URL being used (redacted password).
+    from app.config import _redact_url
+
+    logger.info("Startup — DATABASE_URL: %s", _redact_url(settings.database_url))
+    logger.info(
+        "Startup — DATABASE_AUTO_CREATE=%s, SCHEDULER_ENABLED=%s, SEED_DATA_ON_STARTUP=%s",
+        settings.database_auto_create,
+        settings.scheduler_enabled,
+        settings.seed_data_on_startup,
+    )
+
     # Optionally create all ORM tables on first boot (set DATABASE_AUTO_CREATE=true
     # in production environments that don't use Alembic migrations).
     if settings.database_auto_create:
@@ -64,16 +81,20 @@ async def lifespan(app: FastAPI):
         # starting when the web service boots.  Retry with backoff.
         for attempt in range(5):
             try:
+                logger.info("Attempting DB connection (attempt %d/5)…", attempt + 1)
                 async with engine.begin() as conn:
                     await conn.run_sync(Base.metadata.create_all)
+                logger.info("Database tables created successfully.")
                 break
-            except Exception:
+            except Exception as exc:
+                logger.error(
+                    "Database connection failed (attempt %d/5): %s", attempt + 1, exc
+                )
                 if attempt == 4:
                     raise
                 wait = 2 ** attempt  # 1, 2, 4, 8, 16 s
                 logger.warning(
-                    "Database not ready (attempt %d/5) — retrying in %ds",
-                    attempt + 1,
+                    "Database not ready — retrying in %ds",
                     wait,
                 )
                 await asyncio.sleep(wait)
