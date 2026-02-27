@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -16,11 +16,20 @@ scheduler = AsyncIOScheduler()
 _ingestion_semaphore = asyncio.Semaphore(1)
 
 
-def _latest_cycle(hour_interval: int = 6) -> datetime:
-    """Return the most recent model cycle init time (rounded down to interval)."""
+def _latest_cycle(
+    hour_interval: int = 6, availability_delay_hours: int = 5
+) -> datetime:
+    """Return the most recent model cycle whose data is likely available.
+
+    NWP model output (GFS, NAM, HRRR) is published on NOMADS/cloud mirrors
+    roughly 3.5–5 hours after the nominal cycle time.
+    ``availability_delay_hours`` is subtracted from the current time before
+    rounding down, so we select a cycle whose data should already exist.
+    """
     now = datetime.now(timezone.utc)
-    cycle_hour = (now.hour // hour_interval) * hour_interval
-    return now.replace(hour=cycle_hour, minute=0, second=0, microsecond=0)
+    adjusted = now - timedelta(hours=availability_delay_hours)
+    cycle_hour = (adjusted.hour // hour_interval) * hour_interval
+    return adjusted.replace(hour=cycle_hour, minute=0, second=0, microsecond=0)
 
 
 async def ingest_and_process(model_name: str, init_time: datetime | None = None):
@@ -269,11 +278,13 @@ async def ingest_and_process(model_name: str, init_time: datetime | None = None)
                 await db.commit()
 
 
-# Register cron jobs: GFS and NAM every 6 hours, ECMWF once daily
+# Register cron jobs: GFS/NAM/HRRR every 6 hours, ECMWF once daily.
+# Data is typically published ~3.5-5h after cycle time on NOMADS, so
+# we fire ~5h after each cycle (00Z→05:xx, 06Z→11:xx, 12Z→17:xx, 18Z→23:xx).
 scheduler.add_job(
     ingest_and_process,
     "cron",
-    hour="1,7,13,19",  # ~1h after model init to allow for data availability
+    hour="5,11,17,23",
     minute=30,
     args=["GFS"],
     id="ingest_gfs",
@@ -283,7 +294,7 @@ scheduler.add_job(
 scheduler.add_job(
     ingest_and_process,
     "cron",
-    hour="1,7,13,19",
+    hour="5,11,17,23",
     minute=45,
     args=["NAM"],
     id="ingest_nam",
@@ -303,8 +314,8 @@ scheduler.add_job(
 scheduler.add_job(
     ingest_and_process,
     "cron",
-    hour="1,7,13,19",
-    minute=15,  # HRRR: slightly before GFS/NAM
+    hour="5,11,17,23",
+    minute=15,
     args=["HRRR"],
     id="ingest_hrrr",
     replace_existing=True,
