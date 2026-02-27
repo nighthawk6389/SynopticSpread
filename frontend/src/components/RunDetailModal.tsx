@@ -29,7 +29,6 @@ function resolveLabel(lat: number, lon: number, points: MonitorPoint[]): string 
 export default function RunDetailModal({ run, monitorPoints, onClose }: Props) {
   const { data: metrics, isLoading } = useRunMetrics(run.id)
 
-  // Deduplicate: keep first occurrence per variable+lat+lon+lead_hour
   const seen = new Set<string>()
   const unique = (metrics ?? []).filter(m => {
     const key = `${m.variable}|${m.lat}|${m.lon}|${m.lead_hour}`
@@ -38,7 +37,6 @@ export default function RunDetailModal({ run, monitorPoints, onClose }: Props) {
     return true
   })
 
-  // Group by variable
   const grouped: Record<string, typeof unique> = {}
   for (const m of unique) {
     if (!grouped[m.variable]) grouped[m.variable] = []
@@ -47,24 +45,33 @@ export default function RunDetailModal({ run, monitorPoints, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
+      style={{ background: 'rgba(6, 11, 24, 0.8)', backdropFilter: 'blur(8px)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+      <div
+        className="w-full max-w-3xl max-h-[85vh] flex flex-col animate-scale-in"
+        style={{
+          background: 'var(--bg-base)',
+          border: '1px solid var(--border-default)',
+          borderRadius: '20px',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
+        }}
+      >
         {/* Header */}
-        <div className="flex items-start justify-between p-5 border-b border-gray-700">
+        <div className="flex items-start justify-between p-6" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
           <div>
-            <h2 className="text-lg font-bold">
+            <h2 className="text-lg font-bold" style={{ fontFamily: 'var(--font-display)' }}>
               {run.model_name} Run Details
             </h2>
-            <p className="text-sm text-gray-400 mt-0.5">
+            <p className="text-sm mt-1" style={{ color: 'var(--text-tertiary)' }}>
               Init: {new Date(run.init_time).toUTCString()}
             </p>
-            <div className="flex gap-3 mt-1 text-xs text-gray-500">
-              <span>Status: <span className="text-gray-300">{run.status}</span></span>
+            <div className="flex gap-4 mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+              <span>Status: <span style={{ color: 'var(--text-secondary)' }}>{run.status}</span></span>
               <span>
                 Forecast hours:{' '}
-                <span className="text-gray-300">
+                <span style={{ color: 'var(--text-secondary)' }}>
                   {run.forecast_hours.length > 0
                     ? `${run.forecast_hours[0]}h – ${run.forecast_hours[run.forecast_hours.length - 1]}h (${run.forecast_hours.length} steps)`
                     : '—'}
@@ -74,49 +81,55 @@ export default function RunDetailModal({ run, monitorPoints, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-xl leading-none mt-0.5"
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: 'var(--text-tertiary)' }}
             aria-label="Close"
           >
-            ✕
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto p-5 space-y-5 flex-1">
+        <div className="overflow-y-auto p-6 space-y-6 flex-1">
           {isLoading ? (
-            <p className="text-gray-500 text-sm">Loading metrics…</p>
+            <div className="flex items-center gap-3 py-8" style={{ color: 'var(--text-tertiary)' }}>
+              <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+              Loading metrics…
+            </div>
           ) : unique.length === 0 ? (
-            <p className="text-gray-500 text-sm">No point metrics found for this run.</p>
+            <p className="text-sm py-8" style={{ color: 'var(--text-tertiary)' }}>No point metrics found for this run.</p>
           ) : (
             Object.entries(grouped).map(([variable, rows]) => (
               <div key={variable}>
-                <h3 className="text-sm font-semibold text-gray-300 mb-2">
+                <h3 className="text-sm font-semibold mb-3" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-secondary)' }}>
                   {VARIABLE_LABELS[variable] ?? variable}
-                  <span className="ml-1 text-xs font-normal text-gray-500">
+                  <span className="ml-1.5 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>
                     ({VARIABLE_UNITS[variable] ?? ''})
                   </span>
                 </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs border-collapse">
+                <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid var(--border-subtle)' }}>
+                  <table className="data-table">
                     <thead>
-                      <tr className="text-left text-gray-500 border-b border-gray-700">
-                        <th className="pb-1 pr-4 font-medium">Location</th>
-                        <th className="pb-1 pr-4 font-medium">Lead&nbsp;hr</th>
-                        <th className="pb-1 pr-4 font-medium">Spread</th>
-                        <th className="pb-1 pr-4 font-medium">RMSE</th>
-                        <th className="pb-1 font-medium">Bias</th>
+                      <tr>
+                        <th>Location</th>
+                        <th>Lead hr</th>
+                        <th>Spread</th>
+                        <th>RMSE</th>
+                        <th>Bias</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-800">
+                    <tbody>
                       {rows.map(m => (
-                        <tr key={m.id} className="hover:bg-gray-800/40">
-                          <td className="py-1 pr-4 text-gray-300">
+                        <tr key={m.id}>
+                          <td style={{ color: 'var(--text-secondary)' }}>
                             {resolveLabel(m.lat, m.lon, monitorPoints)}
                           </td>
-                          <td className="py-1 pr-4 text-gray-400">{m.lead_hour}h</td>
-                          <td className="py-1 pr-4">{m.spread.toFixed(3)}</td>
-                          <td className="py-1 pr-4">{m.rmse.toFixed(3)}</td>
-                          <td className="py-1">{m.bias.toFixed(3)}</td>
+                          <td style={{ color: 'var(--text-tertiary)' }}>{m.lead_hour}h</td>
+                          <td className="font-mono text-xs">{m.spread.toFixed(3)}</td>
+                          <td className="font-mono text-xs">{m.rmse.toFixed(3)}</td>
+                          <td className="font-mono text-xs">{m.bias.toFixed(3)}</td>
                         </tr>
                       ))}
                     </tbody>

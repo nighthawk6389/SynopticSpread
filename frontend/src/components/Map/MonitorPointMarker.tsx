@@ -35,8 +35,8 @@ export default function MonitorPointMarker({ lat, lon, label, variable, leadHour
         className: '',
         html: `<div style="
           width:14px;height:14px;border-radius:50%;
-          background:#3b82f6;border:2px solid #fff;
-          box-shadow:0 0 6px rgba(59,130,246,0.8);
+          background:#22d3ee;border:2px solid rgba(255,255,255,0.8);
+          box-shadow:0 0 10px rgba(34,211,238,0.6);
           cursor:pointer;
         "></div>`,
         iconSize: [14, 14],
@@ -57,35 +57,30 @@ export default function MonitorPointMarker({ lat, lon, label, variable, leadHour
     >
       <Popup eventHandlers={{ remove: () => setOpen(false) }}>
         <div className="text-sm min-w-[160px]">
-          <p className="font-bold text-gray-900 mb-1">{label}</p>
-          <p className="text-xs text-gray-500 mb-2">
+          <p className="font-bold mb-1" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>{label}</p>
+          <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
             {lat.toFixed(3)}, {lon.toFixed(3)}
           </p>
           {isLoading ? (
-            <p className="text-gray-500 text-xs">Loading metrics…</p>
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Loading metrics…</p>
           ) : latest ? (
             <table className="w-full text-xs border-collapse">
               <tbody>
-                <tr>
-                  <td className="pr-3 text-gray-500 py-0.5">Lead hour</td>
-                  <td className="font-medium">{latest.lead_hour}h</td>
-                </tr>
-                <tr>
-                  <td className="pr-3 text-gray-500 py-0.5">Spread</td>
-                  <td className="font-medium">{latest.spread.toFixed(3)} {unit}</td>
-                </tr>
-                <tr>
-                  <td className="pr-3 text-gray-500 py-0.5">RMSE</td>
-                  <td className="font-medium">{latest.rmse.toFixed(3)} {unit}</td>
-                </tr>
-                <tr>
-                  <td className="pr-3 text-gray-500 py-0.5">Bias</td>
-                  <td className="font-medium">{latest.bias.toFixed(3)} {unit}</td>
-                </tr>
+                {[
+                  { label: 'Lead hour', value: `${latest.lead_hour}h` },
+                  { label: 'Spread', value: `${latest.spread.toFixed(3)} ${unit}` },
+                  { label: 'RMSE', value: `${latest.rmse.toFixed(3)} ${unit}` },
+                  { label: 'Bias', value: `${latest.bias.toFixed(3)} ${unit}` },
+                ].map(row => (
+                  <tr key={row.label}>
+                    <td className="pr-3 py-0.5" style={{ color: 'var(--text-tertiary)' }}>{row.label}</td>
+                    <td className="font-medium" style={{ color: 'var(--text-primary)' }}>{row.value}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           ) : (
-            <p className="text-gray-400 text-xs">No data for {variable} at {leadHour}h.</p>
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No data for {variable} at {leadHour}h.</p>
           )}
         </div>
       </Popup>

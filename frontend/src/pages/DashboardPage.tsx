@@ -21,6 +21,13 @@ const VARIABLE_UNITS: Record<string, string> = {
   hgt_500: 'm',
 }
 
+const VARIABLE_ICONS: Record<string, string> = {
+  precip: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
+  wind_speed: 'M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z',
+  mslp: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+  hgt_500: 'M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+}
+
 interface VariableMeta {
   what: string
   impact: string
@@ -71,16 +78,16 @@ function spreadLevel(variable: string, mean: number): SpreadLevel {
   return 'normal'
 }
 
-const LEVEL_STYLES: Record<SpreadLevel, string> = {
-  normal: 'border-green-700 bg-green-950/30',
-  elevated: 'border-yellow-600 bg-yellow-950/30',
-  high: 'border-red-600 bg-red-950/30',
+const LEVEL_CARD: Record<SpreadLevel, string> = {
+  normal: 'status-card-normal',
+  elevated: 'status-card-elevated',
+  high: 'status-card-high',
 }
 
 const LEVEL_BADGE: Record<SpreadLevel, string> = {
-  normal: 'bg-green-900 text-green-300',
-  elevated: 'bg-yellow-900 text-yellow-300',
-  high: 'bg-red-900 text-red-300',
+  normal: 'badge-green',
+  elevated: 'badge-yellow',
+  high: 'badge-red',
 }
 
 const LEVEL_LABEL: Record<SpreadLevel, string> = {
@@ -94,9 +101,9 @@ const LEVEL_LABEL: Record<SpreadLevel, string> = {
 function InfoTooltip({ meta }: { meta: VariableMeta }) {
   return (
     <ClickTooltip>
-      <p className="font-semibold text-white mb-1">{meta.what}</p>
-      <p className="mb-2">{meta.impact}</p>
-      <p className="text-gray-400">{meta.thresholds}</p>
+      <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{meta.what}</p>
+      <p className="mb-2" style={{ color: 'var(--text-secondary)' }}>{meta.impact}</p>
+      <p style={{ color: 'var(--text-tertiary)' }}>{meta.thresholds}</p>
     </ClickTooltip>
   )
 }
@@ -114,7 +121,6 @@ export default function DashboardPage() {
   const [selectedRun, setSelectedRun] = useState<ModelRun | null>(null)
   const { data: activeAlerts } = useActiveAlerts()
 
-  // Decomposition for the default location (first selected or New York)
   const decompLocation = selectedLocation ?? { lat: 40.7128, lon: -74.006 }
   const { data: decomposition } = useDecomposition({
     variable: 'precip',
@@ -123,44 +129,54 @@ export default function DashboardPage() {
   })
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fade-in">
       {/* Alert banner */}
       {activeAlerts && activeAlerts.length > 0 && (
-        <div className="rounded-lg border border-red-700 bg-red-950/40 px-4 py-3 flex items-center gap-3">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-red-400 shrink-0">
-            <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-          </svg>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-red-300">
+        <div className="glass-card animate-slide-down flex items-center gap-4 px-5 py-4"
+          style={{ borderColor: 'var(--red-border)', background: 'var(--red-dim)' }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: 'var(--red-dim)', border: '1px solid var(--red-border)' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+              className="w-5 h-5" style={{ color: 'var(--red)' }}>
+              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold" style={{ color: 'var(--red)' }}>
               {activeAlerts.length} active alert{activeAlerts.length > 1 ? 's' : ''}
             </p>
-            <p className="text-xs text-red-400/70">
+            <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-tertiary)' }}>
               {activeAlerts.slice(0, 3).map(a =>
                 `${a.variable} ${a.location_label ? `at ${a.location_label}` : ''} (${a.value.toFixed(2)})`
               ).join(', ')}
               {activeAlerts.length > 3 && ` and ${activeAlerts.length - 3} more`}
             </p>
           </div>
-          <NavLink to="/alerts" className="text-xs text-red-300 hover:text-red-200 underline shrink-0">
+          <NavLink to="/alerts" className="btn-ghost shrink-0 text-xs" style={{ color: 'var(--red)', borderColor: 'var(--red-border)' }}>
             View alerts
           </NavLink>
         </div>
       )}
 
-      <div>
-        <h2 className="text-2xl font-bold">Model Divergence Dashboard</h2>
-        <p className="mt-1 text-sm text-gray-400">
+      {/* Page header */}
+      <div className="animate-slide-up">
+        <h2 className="section-title text-2xl" style={{ fontFamily: 'var(--font-display)' }}>
+          Model Divergence Dashboard
+        </h2>
+        <p className="section-subtitle mt-2">
           Ensemble spread across GFS, NAM, ECMWF, and HRRR
           {selectedLocation
-            ? <> — filtered to <span className="font-medium text-gray-300">{selectedLocation.label}</span></>
+            ? <> — filtered to <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{selectedLocation.label}</span></>
             : <> — computed over {monitorPoints?.length ?? 8} monitored locations</>
           }
         </p>
       </div>
 
       {/* Location filter */}
-      <div className="flex items-center gap-3">
-        <label className="text-xs text-gray-400">Location</label>
+      <div className="flex items-center gap-3 animate-slide-up delay-1">
+        <label className="text-xs font-medium" style={{ color: 'var(--text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+          Location
+        </label>
         <select
           value={selectedLocation ? `${selectedLocation.lat},${selectedLocation.lon}` : 'all'}
           onChange={e => {
@@ -173,7 +189,7 @@ export default function DashboardPage() {
               if (pt) setSelectedLocation(pt)
             }
           }}
-          className="rounded bg-gray-800 border border-gray-700 px-3 py-1.5 text-sm"
+          className="control-select"
         >
           <option value="all">All Locations</option>
           {monitorPoints?.map(pt => (
@@ -185,75 +201,85 @@ export default function DashboardPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {summaryLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="animate-pulse rounded-lg bg-gray-800 p-5 h-32" />
+            <div key={i} className={`skeleton-shimmer h-[180px] delay-${i + 1}`} />
           ))
         ) : summaries && summaries.length > 0 ? (
-          summaries.map(s => {
+          summaries.map((s, i) => {
             const level = spreadLevel(s.variable, s.mean_spread)
             const unit = VARIABLE_UNITS[s.variable] ?? ''
             const meta = VARIABLE_META[s.variable]
+            const iconPath = VARIABLE_ICONS[s.variable]
             return (
               <div
                 key={s.variable}
-                className={`rounded-lg border p-5 transition-colors ${LEVEL_STYLES[level]}`}
+                className={`glass-card p-5 animate-slide-up delay-${i + 1} ${LEVEL_CARD[level]}`}
               >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-gray-300 flex items-center">
-                    {VARIABLE_LABELS[s.variable] ?? s.variable}
-                    {meta && <InfoTooltip meta={meta} />}
-                  </h3>
-                  <span className={`text-xs rounded-full px-2 py-0.5 font-medium ${LEVEL_BADGE[level]}`}>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)' }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                        strokeWidth={1.5} stroke="currentColor" className="w-4.5 h-4.5"
+                        style={{ color: 'var(--text-secondary)' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
+                      </svg>
+                    </div>
+                    <div className="flex items-center">
+                      <h3 className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                        {VARIABLE_LABELS[s.variable] ?? s.variable}
+                      </h3>
+                      {meta && <InfoTooltip meta={meta} />}
+                    </div>
+                  </div>
+                  <span className={`badge ${LEVEL_BADGE[level]}`}>
                     {LEVEL_LABEL[level]}
                   </span>
                 </div>
 
-                <p className="mt-3 text-2xl font-bold text-white">
+                <p className="text-3xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
                   {s.mean_spread.toFixed(2)}
-                  <span className="ml-1 text-sm font-normal text-gray-400">{unit}</span>
+                  <span className="ml-1.5 text-sm font-normal" style={{ color: 'var(--text-tertiary)' }}>{unit}</span>
                 </p>
-                <p className="text-xs text-gray-500 mt-0.5">avg ensemble spread</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>avg ensemble spread</p>
 
-                <div className="mt-3 grid grid-cols-3 gap-1 text-xs">
-                  <div>
-                    <p className="text-gray-500">Min</p>
-                    <p className="font-medium text-gray-300">{s.min_spread.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Avg</p>
-                    <p className="font-medium text-gray-300">{s.mean_spread.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Max</p>
-                    <p className="font-medium text-gray-300">{s.max_spread.toFixed(2)}</p>
-                  </div>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'Min', value: s.min_spread },
+                    { label: 'Avg', value: s.mean_spread },
+                    { label: 'Max', value: s.max_spread },
+                  ].map(stat => (
+                    <div key={stat.label} className="rounded-lg p-2" style={{ background: 'rgba(255,255,255,0.02)' }}>
+                      <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{stat.label}</p>
+                      <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--text-secondary)' }}>{stat.value.toFixed(2)}</p>
+                    </div>
+                  ))}
                 </div>
 
-                <p className="mt-2 text-xs text-gray-600">
-                  {s.num_points} data points · {s.models_compared.join(', ')}
+                <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {s.num_points} points · {s.models_compared.join(', ')}
                 </p>
               </div>
             )
           })
         ) : (
-          <div className="col-span-full rounded-lg bg-gray-800 border border-gray-700 p-8 text-center text-gray-500">
-            No divergence data yet. Trigger a model run from the admin panel.
+          <div className="col-span-full glass-card p-10 text-center">
+            <p style={{ color: 'var(--text-tertiary)' }}>No divergence data yet. Trigger a model run from the admin panel.</p>
           </div>
         )}
       </div>
 
       {/* Pair Contributions */}
       {decomposition && decomposition.length > 0 && (
-        <div>
-          <h3 className="text-lg font-semibold mb-1">Pair Contributions</h3>
-          <p className="text-xs text-gray-500 mb-3">
+        <div className="animate-slide-up delay-5">
+          <h3 className="section-title text-lg mb-1" style={{ fontFamily: 'var(--font-display)' }}>Pair Contributions</h3>
+          <p className="section-subtitle mb-4">
             Which model pair is most divergent (RMSE by lead hour, precipitation at {selectedLocation?.label ?? 'New York'}).
           </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(() => {
-              // Aggregate across lead hours for each pair
               const pairTotals: Record<string, { rmse: number; count: number }> = {}
               for (const entry of decomposition) {
                 for (const pair of entry.pairs) {
@@ -270,57 +296,66 @@ export default function DashboardPage() {
                 .sort((a, b) => b.avgRmse - a.avgRmse)
               const maxRmse = Math.max(...pairs.map(p => p.avgRmse), 0.01)
 
-              return pairs.map(({ pair, avgRmse }) => (
-                <div key={pair} className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="font-medium text-gray-300">{pair}</span>
-                    <span className="text-gray-400">{avgRmse.toFixed(3)}</span>
+              return pairs.map(({ pair, avgRmse }, i) => {
+                const ratio = avgRmse / maxRmse
+                const barColor = ratio > 0.66 ? 'var(--red)' : ratio > 0.33 ? 'var(--yellow)' : 'var(--green)'
+                return (
+                  <div key={pair} className={`glass-card p-4 animate-slide-up delay-${Math.min(i + 1, 6)}`}>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>
+                        {pair}
+                      </span>
+                      <span className="font-mono text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                        {avgRmse.toFixed(3)}
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border-subtle)' }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${ratio * 100}%`,
+                          backgroundColor: barColor,
+                          boxShadow: `0 0 8px ${barColor}40`,
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${(avgRmse / maxRmse) * 100}%`,
-                        backgroundColor: avgRmse / maxRmse > 0.66 ? '#ef4444' : avgRmse / maxRmse > 0.33 ? '#eab308' : '#22c55e',
-                      }}
-                    />
-                  </div>
-                </div>
-              ))
+                )
+              })
             })()}
           </div>
         </div>
       )}
 
       {/* Recent Model Runs */}
-      <div>
-        <h3 className="text-lg font-semibold mb-1">Recent Model Runs</h3>
-        <p className="text-xs text-gray-500 mb-3">
+      <div className="animate-slide-up delay-6">
+        <h3 className="section-title text-lg mb-1" style={{ fontFamily: 'var(--font-display)' }}>Recent Model Runs</h3>
+        <p className="section-subtitle mb-4">
           Click a row to inspect point-level metrics for that run.
         </p>
-        <div className="overflow-hidden rounded-lg border border-gray-700">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-800">
+        <div className="glass-card overflow-hidden" style={{ borderRadius: '16px' }}>
+          <table className="data-table">
+            <thead>
               <tr>
-                <th className="px-4 py-2 text-left font-medium text-gray-400">Model</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-400">Init Time (UTC)</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-400">Status</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-400">
+                <th>Model</th>
+                <th>Init Time (UTC)</th>
+                <th>Status</th>
+                <th>
                   <span className="inline-flex items-center">
                     Lead Hours
                     <ClickTooltip>
-                      <p className="font-semibold text-white mb-1">What are lead hours?</p>
-                      <p className="mb-2">
+                      <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>What are lead hours?</p>
+                      <p className="mb-2" style={{ color: 'var(--text-secondary)' }}>
                         Lead time (forecast hour) measures how far into the future a forecast is
                         valid, counted from the model's initialization time.
                       </p>
-                      <p className="mb-2">
+                      <p className="mb-2" style={{ color: 'var(--text-secondary)' }}>
                         <strong>0h</strong> = analysis (current conditions).{' '}
                         <strong>6h</strong> = 6 hours from now.{' '}
                         <strong>24h</strong> = tomorrow.{' '}
                         <strong>120h</strong> = 5 days out.
                       </p>
-                      <p className="text-gray-400">
+                      <p style={{ color: 'var(--text-tertiary)' }}>
                         Models tend to diverge more at longer lead times as small
                         differences in initial conditions amplify over time.
                       </p>
@@ -329,36 +364,36 @@ export default function DashboardPage() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
+            <tbody>
               {runsLoading ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-gray-500">Loading…</td>
+                  <td colSpan={4} className="text-center py-10" style={{ color: 'var(--text-tertiary)' }}>Loading…</td>
                 </tr>
               ) : runs && runs.length > 0 ? (
                 runs.map(run => (
                   <tr
                     key={run.id}
                     onClick={() => setSelectedRun(run)}
-                    className="hover:bg-gray-800/60 cursor-pointer"
+                    className="cursor-pointer"
                   >
-                    <td className="px-4 py-2 font-medium">{run.model_name}</td>
-                    <td className="px-4 py-2 text-gray-300">
+                    <td>
+                      <span className="font-semibold" style={{ fontFamily: 'var(--font-display)' }}>{run.model_name}</span>
+                    </td>
+                    <td style={{ color: 'var(--text-secondary)' }}>
                       {new Date(run.init_time).toUTCString()}
                     </td>
-                    <td className="px-4 py-2">
-                      <span
-                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                          run.status === 'complete'
-                            ? 'bg-green-900 text-green-300'
-                            : run.status === 'error'
-                              ? 'bg-red-900 text-red-300'
-                              : 'bg-yellow-900 text-yellow-300'
-                        }`}
-                      >
+                    <td>
+                      <span className={`badge ${
+                        run.status === 'complete'
+                          ? 'badge-green'
+                          : run.status === 'error'
+                            ? 'badge-red'
+                            : 'badge-yellow'
+                      }`}>
                         {run.status}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-gray-400">
+                    <td style={{ color: 'var(--text-tertiary)' }}>
                       {run.forecast_hours.length > 0
                         ? `${run.forecast_hours[0]}h – ${run.forecast_hours[run.forecast_hours.length - 1]}h (${run.forecast_hours.length} steps)`
                         : '—'}
@@ -367,7 +402,7 @@ export default function DashboardPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={4} className="text-center py-10" style={{ color: 'var(--text-tertiary)' }}>
                     No model runs yet.
                   </td>
                 </tr>

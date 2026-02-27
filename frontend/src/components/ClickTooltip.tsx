@@ -20,12 +20,13 @@ export default function ClickTooltip({ children }: Props) {
   }, [open])
 
   return (
-    <span ref={ref} className="relative ml-1 cursor-pointer inline-block">
+    <span ref={ref} className="relative ml-1.5 cursor-pointer inline-block">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 20 20"
         fill="currentColor"
-        className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300 inline"
+        className="w-3.5 h-3.5 inline transition-colors"
+        style={{ color: open ? 'var(--accent)' : 'var(--text-muted)' }}
         onClick={e => {
           e.stopPropagation()
           setOpen(o => !o)
@@ -38,7 +39,15 @@ export default function ClickTooltip({ children }: Props) {
         />
       </svg>
       {open && (
-        <div className="absolute left-0 top-full mt-2 z-50 w-72 rounded bg-gray-700 text-gray-200 text-xs p-3 shadow-xl leading-relaxed">
+        <div
+          className="absolute left-0 top-full mt-2 z-50 w-72 rounded-xl text-xs p-4 leading-relaxed animate-scale-in"
+          style={{
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border-default)',
+            boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
+            color: 'var(--text-secondary)',
+          }}
+        >
           {children}
         </div>
       )}

@@ -44,10 +44,15 @@ export default function PlaybackControls({
   const progress = max === min ? 0 : ((leadHour - min) / (max - min)) * 100
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3">
       <button
         onClick={() => setPlaying(p => !p)}
-        className="flex items-center justify-center w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-sm"
+        className="flex items-center justify-center w-9 h-9 rounded-xl transition-all"
+        style={{
+          background: playing ? 'var(--accent-glow)' : 'rgba(255,255,255,0.04)',
+          border: `1px solid ${playing ? 'rgba(34,211,238,0.3)' : 'var(--border-subtle)'}`,
+          color: playing ? 'var(--accent)' : 'var(--text-secondary)',
+        }}
         title={playing ? 'Pause' : 'Play'}
       >
         {playing ? (
@@ -63,16 +68,26 @@ export default function PlaybackControls({
 
       <button
         onClick={() => setSpeedIdx(i => (i + 1) % SPEEDS.length)}
-        className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 min-w-[32px]"
+        className="text-xs font-semibold px-2.5 py-1.5 rounded-lg min-w-[36px] transition-all"
+        style={{
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid var(--border-subtle)',
+          color: 'var(--text-secondary)',
+          fontFamily: 'var(--font-display)',
+        }}
         title="Playback speed"
       >
         {SPEEDS[speedIdx].label}
       </button>
 
-      <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden min-w-[80px]">
+      <div className="flex-1 h-1.5 rounded-full overflow-hidden min-w-[80px]" style={{ background: 'var(--border-subtle)' }}>
         <div
-          className="h-full bg-blue-500 rounded-full transition-all duration-300"
-          style={{ width: `${progress}%` }}
+          className="h-full rounded-full transition-all duration-300"
+          style={{
+            width: `${progress}%`,
+            background: 'linear-gradient(90deg, var(--accent-dim), var(--accent))',
+            boxShadow: '0 0 8px var(--accent-glow)',
+          }}
         />
       </div>
     </div>

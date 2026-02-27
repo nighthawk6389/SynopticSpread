@@ -48,10 +48,10 @@ const PRESET_LOCATIONS = [
   { lat: 32.7157, lon: -117.1611, label: 'San Diego' },
 ]
 
-const COLORS = ['#60a5fa', '#f87171', '#34d399', '#fbbf24', '#a78bfa', '#fb923c']
+const COLORS = ['#22d3ee', '#f87171', '#34d399', '#fbbf24', '#a78bfa', '#fb923c']
 
 const PAIR_COLORS: Record<string, string> = {
-  'ECMWF-GFS': '#60a5fa',
+  'ECMWF-GFS': '#22d3ee',
   'GFS-NAM': '#f87171',
   'ECMWF-NAM': '#34d399',
   'GFS-HRRR': '#fbbf24',
@@ -88,8 +88,6 @@ export default function TimeSeriesPage() {
     enabled: viewMode === 'decomposition',
   })
 
-  // Transform metrics into chart data grouped by lead_hour.
-  // Data arrives ordered by created_at DESC; keep the first (newest) entry per lead_hour.
   const chartData = (() => {
     if (!metrics || metrics.length === 0) return []
     const byHour = new Map<number, Record<string, number>>()
@@ -106,7 +104,6 @@ export default function TimeSeriesPage() {
     return Array.from(byHour.values()).sort((a, b) => a.lead_hour - b.lead_hour)
   })()
 
-  // Transform decomposition data for per-pair chart
   const decompChartData = (() => {
     if (!decomposition || decomposition.length === 0) return { data: [] as Record<string, number>[], pairs: [] as string[] }
     const pairSet = new Set<string>()
@@ -135,188 +132,205 @@ export default function TimeSeriesPage() {
   const isChartLoading = viewMode === 'aggregate' ? isLoading : decompLoading
   const hasData = viewMode === 'aggregate' ? chartData.length > 0 : decompChartData.data.length > 0
 
+  const tooltipStyle = {
+    backgroundColor: 'var(--bg-surface)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 12,
+    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+  }
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Time Series Analysis</h2>
-        <p className="mt-1 text-sm text-gray-400">
+    <div className="space-y-8 animate-fade-in">
+      <div className="animate-slide-up">
+        <h2 className="section-title text-2xl" style={{ fontFamily: 'var(--font-display)' }}>Time Series Analysis</h2>
+        <p className="section-subtitle mt-2">
           Divergence metrics vs. forecast lead time
         </p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-4">
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Variable</label>
-          <select
-            value={variable}
-            onChange={e => setVariable(e.target.value)}
-            className="rounded bg-gray-800 border border-gray-700 px-3 py-1.5 text-sm"
-          >
-            {VARIABLES.map(v => (
-              <option key={v.value} value={v.value}>{v.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Location</label>
-          <select
-            value={`${location.lat},${location.lon}`}
-            onChange={e => {
-              const loc = PRESET_LOCATIONS.find(l => `${l.lat},${l.lon}` === e.target.value)
-              if (loc) setLocation(loc)
-            }}
-            className="rounded bg-gray-800 border border-gray-700 px-3 py-1.5 text-sm"
-          >
-            {PRESET_LOCATIONS.map(l => (
-              <option key={l.label} value={`${l.lat},${l.lon}`}>{l.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">View</label>
-          <select
-            value={viewMode}
-            onChange={e => setViewMode(e.target.value as 'aggregate' | 'decomposition')}
-            className="rounded bg-gray-800 border border-gray-700 px-3 py-1.5 text-sm"
-          >
-            <option value="aggregate">Aggregate</option>
-            <option value="decomposition">Per-Pair Decomposition</option>
-          </select>
-        </div>
-
-        <div className="flex items-end gap-2">
+      {/* Controls */}
+      <div className="glass-card p-5 animate-slide-up delay-1">
+        <div className="flex flex-wrap items-end gap-5">
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Lat</label>
-            <input
-              type="text"
-              value={customLat}
-              onChange={e => setCustomLat(e.target.value)}
-              placeholder="40.71"
-              className="w-20 rounded bg-gray-800 border border-gray-700 px-2 py-1.5 text-sm"
-            />
+            <label className="block text-xs font-medium mb-1.5"
+              style={{ color: 'var(--text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              Variable
+            </label>
+            <select
+              value={variable}
+              onChange={e => setVariable(e.target.value)}
+              className="control-select"
+            >
+              {VARIABLES.map(v => (
+                <option key={v.value} value={v.value}>{v.label}</option>
+              ))}
+            </select>
           </div>
+
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Lon</label>
-            <input
-              type="text"
-              value={customLon}
-              onChange={e => setCustomLon(e.target.value)}
-              placeholder="-74.01"
-              className="w-20 rounded bg-gray-800 border border-gray-700 px-2 py-1.5 text-sm"
-            />
+            <label className="block text-xs font-medium mb-1.5"
+              style={{ color: 'var(--text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              Location
+            </label>
+            <select
+              value={`${location.lat},${location.lon}`}
+              onChange={e => {
+                const loc = PRESET_LOCATIONS.find(l => `${l.lat},${l.lon}` === e.target.value)
+                if (loc) setLocation(loc)
+              }}
+              className="control-select"
+            >
+              {PRESET_LOCATIONS.map(l => (
+                <option key={l.label} value={`${l.lat},${l.lon}`}>{l.label}</option>
+              ))}
+            </select>
           </div>
-          <button
-            onClick={handleCustomLocation}
-            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium hover:bg-blue-500"
-          >
-            Go
-          </button>
+
+          <div>
+            <label className="block text-xs font-medium mb-1.5"
+              style={{ color: 'var(--text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              View
+            </label>
+            <select
+              value={viewMode}
+              onChange={e => setViewMode(e.target.value as 'aggregate' | 'decomposition')}
+              className="control-select"
+            >
+              <option value="aggregate">Aggregate</option>
+              <option value="decomposition">Per-Pair Decomposition</option>
+            </select>
+          </div>
+
+          <div className="flex items-end gap-2">
+            <div>
+              <label className="block text-xs font-medium mb-1.5"
+                style={{ color: 'var(--text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                Lat
+              </label>
+              <input
+                type="text"
+                value={customLat}
+                onChange={e => setCustomLat(e.target.value)}
+                placeholder="40.71"
+                className="control-input w-20"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1.5"
+                style={{ color: 'var(--text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                Lon
+              </label>
+              <input
+                type="text"
+                value={customLon}
+                onChange={e => setCustomLon(e.target.value)}
+                placeholder="-74.01"
+                className="control-input w-20"
+              />
+            </div>
+            <button onClick={handleCustomLocation} className="btn-primary">
+              Go
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="rounded-lg bg-gray-800 border border-gray-700 p-4">
-        <h3 className="text-sm font-medium text-gray-300 mb-4">
+      {/* Chart */}
+      <div className="glass-card p-6 animate-slide-up delay-2">
+        <h3 className="text-sm font-semibold mb-5" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-secondary)' }}>
           {viewMode === 'aggregate'
             ? `Divergence at ${location.label} — ${VARIABLES.find(v => v.value === variable)?.label}`
             : `Per-Pair RMSE at ${location.label} — ${VARIABLES.find(v => v.value === variable)?.label}`
           }
         </h3>
         {isChartLoading ? (
-          <div className="flex h-64 items-center justify-center text-gray-500">Loading...</div>
+          <div className="flex h-[350px] items-center justify-center" style={{ color: 'var(--text-tertiary)' }}>
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+              Loading…
+            </div>
+          </div>
         ) : !hasData ? (
-          <div className="flex h-64 items-center justify-center text-gray-500">
+          <div className="flex h-[350px] items-center justify-center" style={{ color: 'var(--text-tertiary)' }}>
             No data available for this location and variable.
           </div>
         ) : viewMode === 'aggregate' ? (
           <ResponsiveContainer width="100%" height={350}>
             <LineChart data={chartData} margin={{ left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(56,103,187,0.12)" />
               <XAxis
                 dataKey="lead_hour"
-                stroke="#9ca3af"
+                stroke="var(--text-tertiary)"
+                tick={{ fontSize: 11, fontFamily: 'var(--font-body)' }}
                 label={{
                   value: 'Forecast Lead Hour (h)',
                   position: 'insideBottom',
                   offset: -5,
-                  fill: '#9ca3af',
-                  fontSize: 12,
+                  fill: 'var(--text-tertiary)',
+                  fontSize: 11,
+                  fontFamily: 'var(--font-body)',
                 }}
               />
               <YAxis
-                stroke="#9ca3af"
+                stroke="var(--text-tertiary)"
+                tick={{ fontSize: 11, fontFamily: 'var(--font-body)' }}
                 label={{
                   value: VARIABLE_UNITS[variable] ?? '',
                   angle: -90,
                   position: 'insideLeft',
-                  fill: '#9ca3af',
-                  fontSize: 12,
+                  fill: 'var(--text-tertiary)',
+                  fontSize: 11,
+                  fontFamily: 'var(--font-body)',
                 }}
               />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
-                labelStyle={{ color: '#9ca3af' }}
+                contentStyle={tooltipStyle}
+                labelStyle={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', fontSize: 11 }}
+                itemStyle={{ fontFamily: 'var(--font-body)', fontSize: 12 }}
                 labelFormatter={v => `Lead hour: ${v}h`}
               />
-              <Legend verticalAlign="top" height={36} />
-              <Line
-                type="monotone"
-                dataKey="spread"
-                stroke={COLORS[0]}
-                name="Ensemble Spread"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="rmse"
-                stroke={COLORS[1]}
-                name="RMSE"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="bias"
-                stroke={COLORS[2]}
-                name="Bias"
-                strokeWidth={2}
-                dot={false}
-              />
+              <Legend verticalAlign="top" height={36} wrapperStyle={{ fontFamily: 'var(--font-body)', fontSize: 12 }} />
+              <Line type="monotone" dataKey="spread" stroke={COLORS[0]} name="Ensemble Spread" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="rmse" stroke={COLORS[1]} name="RMSE" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="bias" stroke={COLORS[2]} name="Bias" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         ) : (
           <ResponsiveContainer width="100%" height={350}>
             <LineChart data={decompChartData.data} margin={{ left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(56,103,187,0.12)" />
               <XAxis
                 dataKey="lead_hour"
-                stroke="#9ca3af"
+                stroke="var(--text-tertiary)"
+                tick={{ fontSize: 11, fontFamily: 'var(--font-body)' }}
                 label={{
                   value: 'Forecast Lead Hour (h)',
                   position: 'insideBottom',
                   offset: -5,
-                  fill: '#9ca3af',
-                  fontSize: 12,
+                  fill: 'var(--text-tertiary)',
+                  fontSize: 11,
+                  fontFamily: 'var(--font-body)',
                 }}
               />
               <YAxis
-                stroke="#9ca3af"
+                stroke="var(--text-tertiary)"
+                tick={{ fontSize: 11, fontFamily: 'var(--font-body)' }}
                 label={{
                   value: `RMSE (${VARIABLE_UNITS[variable] ?? ''})`,
                   angle: -90,
                   position: 'insideLeft',
-                  fill: '#9ca3af',
-                  fontSize: 12,
+                  fill: 'var(--text-tertiary)',
+                  fontSize: 11,
+                  fontFamily: 'var(--font-body)',
                 }}
               />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
-                labelStyle={{ color: '#9ca3af' }}
+                contentStyle={tooltipStyle}
+                labelStyle={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', fontSize: 11 }}
+                itemStyle={{ fontFamily: 'var(--font-body)', fontSize: 12 }}
                 labelFormatter={v => `Lead hour: ${v}h`}
               />
-              <Legend verticalAlign="top" height={36} />
+              <Legend verticalAlign="top" height={36} wrapperStyle={{ fontFamily: 'var(--font-body)', fontSize: 12 }} />
               {decompChartData.pairs.map((pair, i) => (
                 <Line
                   key={pair}
