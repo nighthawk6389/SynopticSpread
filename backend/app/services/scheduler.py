@@ -1,6 +1,7 @@
 """APScheduler jobs for periodic NWP data ingestion and divergence computation."""
 
 import asyncio
+import gc
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -400,6 +401,7 @@ async def ingest_and_process(
                                     },
                                 )
                                 db.add(gs)
+                                del div_grid
                             except Exception:
                                 logger.warning(
                                     "Grid divergence failed: fhr=%d var=%s",
@@ -407,9 +409,19 @@ async def ingest_and_process(
                                     var,
                                 )
 
+                        # Free per-lead-hour datasets before next iteration
+                        del fhr_datasets
+                        gc.collect()
+
                 run.status = RunStatus.complete
                 await db.commit()
                 logger.info("%s %s ingestion complete", model_name, init_time)
+
+                # Free locally re-fetched comparison data (but not the
+                # caller's other_model_data which may still be needed).
+                if not other_model_data:
+                    all_model_data.clear()
+                gc.collect()
 
                 return data
 

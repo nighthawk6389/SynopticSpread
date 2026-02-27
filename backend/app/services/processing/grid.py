@@ -1,5 +1,6 @@
 """Grid-level divergence computation and Zarr storage."""
 
+import gc
 import logging
 from pathlib import Path
 
@@ -102,8 +103,11 @@ def compute_grid_divergence(
         raise ValueError("Need at least 2 models to compute divergence")
 
     stacked = xr.concat(list(regridded.values()), dim="model")
+    del regridded
     divergence = stacked.std(dim="model", ddof=1)
+    del stacked
     divergence.name = f"{variable}_divergence"
+    gc.collect()
     return divergence
 
 

@@ -1,4 +1,5 @@
 import asyncio
+import gc
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -86,7 +87,13 @@ async def _seed_initial_data():
         except Exception:
             logger.exception("Seed ingestion failed for %s", model)
 
+        # Free memory between model ingestions
+        gc.collect()
+
     n_models = len(all_fetched)
+    # Release all cached model data now that seeding is complete
+    del all_fetched
+    gc.collect()
     logger.info(
         "Seed complete: %d/%d models loaded, divergence %s",
         n_models,
