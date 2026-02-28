@@ -292,7 +292,7 @@ export default function DashboardPage() {
           Model Divergence Dashboard
         </h2>
         <p className="section-subtitle mt-2">
-          Ensemble spread across GFS, NAM, ECMWF, and HRRR
+          Ensemble spread across all tracked models
           {selectedLocation
             ? <> — filtered to <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{selectedLocation.label}</span></>
             : <> — computed over {monitorPoints?.length ?? 8} monitored locations</>

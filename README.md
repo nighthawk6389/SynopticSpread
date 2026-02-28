@@ -1,13 +1,13 @@
 # SynopticSpread
 
-Track divergence between global NWP models (GFS, NAM, ECMWF) in near-real-time. The system ingests GRIB2 data every 6 hours, computes point-level and grid-level divergence metrics, stores them in PostgreSQL, and serves them through a FastAPI + React dashboard.
+Track divergence between global NWP models (GFS, NAM, ECMWF, HRRR) in near-real-time. The system ingests GRIB2 data every 6 hours, computes point-level and grid-level divergence metrics, stores them in PostgreSQL, and serves them through a FastAPI + React dashboard.
 
 ## Stack
 
-- **Backend**: FastAPI, SQLAlchemy (async), Alembic, APScheduler, xarray, herbie-data, cdsapi
+- **Backend**: FastAPI, SQLAlchemy (async), Alembic, APScheduler, xarray, herbie-data, ecmwf-opendata
 - **Frontend**: React 19, Vite, Tailwind v4, React Query, Leaflet, Recharts
 - **Storage**: PostgreSQL (metrics), Zarr files (2D divergence grids)
-- **Data sources**: NOAA NOMADS (GFS/NAM via herbie), ECMWF Open Data (via cdsapi)
+- **Data sources**: NOAA NOMADS (GFS/NAM/HRRR via herbie), ECMWF Open Data (IFS via ecmwf-opendata)
 
 ## Deploy to Render
 
@@ -15,7 +15,7 @@ Track divergence between global NWP models (GFS, NAM, ECMWF) in near-real-time. 
 
 > The web service requires at least the Starter plan ($7/mo). The free PostgreSQL tier has a 90-day limit — upgrade to Basic ($7/mo) for production.
 
-Set `ECMWF_API_KEY` in the Render environment panel if you want ECMWF ingestion; leave it empty to skip.
+All models (GFS, NAM, HRRR, ECMWF) are ingested automatically — no API keys required.
 
 In production, a single Docker container (root `Dockerfile`) runs uvicorn and serves both the API and the compiled frontend — no separate nginx needed.
 
@@ -23,7 +23,6 @@ In production, a single Docker container (root `Dockerfile`) runs uvicorn and se
 
 ```bash
 cp .env.example backend/.env
-# Add your ECMWF API key to backend/.env if you want ECMWF data
 
 docker compose up --build
 ```
@@ -82,7 +81,6 @@ Copy `.env.example` to `backend/.env`:
 | Variable | Default | Description |
 |---|---|---|
 | `DATABASE_URL` | local postgres | asyncpg connection string |
-| `ECMWF_API_KEY` | — | Required for ECMWF ingestion — get from [Copernicus CDS](https://cds.climate.copernicus.eu) |
 | `DATA_STORE_PATH` | `./data` | Directory where Zarr divergence grids are written |
 | `SCHEDULER_ENABLED` | `true` | Set to `false` for API-only / test mode |
 | `DATABASE_AUTO_CREATE` | `false` | Create ORM tables on startup without Alembic (used by Render) |
@@ -125,9 +123,10 @@ Use `scripts/admin.sh` to call these from the command line without writing curl 
 
 Ingestion runs automatically via APScheduler inside the backend process:
 
-- **GFS**: 01:30, 07:30, 13:30, 19:30 UTC
-- **NAM**: 01:45, 07:45, 13:45, 19:45 UTC
-- **ECMWF**: 14:00 UTC daily
+- **ECMWF**: 05:00, 11:00, 17:00, 23:00 UTC
+- **HRRR**: 05:15, 11:15, 17:15, 23:15 UTC
+- **GFS**: 05:30, 11:30, 17:30, 23:30 UTC
+- **NAM**: 05:45, 11:45, 17:45, 23:45 UTC
 
 The pipeline is idempotent — re-running a cycle that already succeeded is a no-op.
 
@@ -142,4 +141,4 @@ The pipeline is idempotent — re-running a cycle that already succeeded is a no
 
 ## Monitored Points
 
-Eight US cities are pre-configured (New York, Los Angeles, Chicago, Houston, Seattle, Denver, Miami, Washington DC). Add or change them via `monitor_points` in `backend/app/config.py`.
+Twenty US cities are pre-configured (New York, Los Angeles, Chicago, Houston, Seattle, Denver, Miami, Washington DC, Atlanta, Boston, Minneapolis, Phoenix, San Francisco, Dallas, Portland, Detroit, Nashville, Columbus, Charlotte, San Diego). Add or change them via `monitor_points` in `backend/app/config.py`.

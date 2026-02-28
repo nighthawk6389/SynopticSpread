@@ -38,7 +38,7 @@ This document describes the technical implementation of the SynopticSpread backe
 | Config | pydantic-settings 2.6+ | Type-safe settings with `.env` file support |
 | Scheduling | APScheduler 3.11+ | Cron-based periodic ingestion jobs |
 | Weather data | herbie-data 2024.9+ | GRIB2 fetching from NOAA NOMADS (GFS, NAM) |
-| Weather data | cdsapi 0.7+ | Copernicus Climate Data Store access (ECMWF ERA5) |
+| Weather data | ecmwf-opendata 0.3+ | ECMWF IFS real-time forecast access (no API key) |
 | Scientific | xarray, numpy, pandas, scipy | Multi-dimensional array operations, interpolation |
 | GRIB2 decoding | cfgrib 0.9+ | GRIB2-to-xarray via eccodes C library |
 | Array storage | zarr 2.18+ | Chunked, compressed on-disk array storage |
@@ -78,7 +78,7 @@ backend/
 │       │   ├── base.py             # ModelFetcher ABC, VARIABLES dict, DEFAULT_LEAD_HOURS
 │       │   ├── gfs.py              # GFSFetcher (herbie-data)
 │       │   ├── nam.py              # NAMFetcher (herbie-data)
-│       │   └── ecmwf.py            # ECMWFFetcher (cdsapi)
+│       │   └── ecmwf.py            # ECMWFFetcher (ecmwf-opendata)
 │       ├── processing/
 │       │   ├── metrics.py          # extract_point, compute_pairwise_metrics, compute_ensemble_spread
 │       │   └── grid.py             # regrid_to_common, compute_grid_divergence, save/load Zarr
@@ -89,7 +89,7 @@ backend/
     ├── test_metrics.py             # Unit tests for point-level metrics
     ├── test_grid.py                # Unit tests for grid divergence computation
     ├── test_grid_zarr.py           # Zarr round-trip + edge case tests
-    ├── test_ingestion.py           # Fetcher unit tests (herbie/cdsapi mocked)
+    ├── test_ingestion.py           # Fetcher unit tests (herbie/ecmwf-opendata mocked)
     ├── test_routers.py             # Router unit tests (DB fully mocked)
     ├── test_integration.py         # Full-stack integration tests (real SQLite + HTTP)
     └── test_scheduler.py           # Scheduler logic unit tests
@@ -139,8 +139,7 @@ Settings are managed by a `pydantic_settings.BaseSettings` subclass that reads f
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | `database_url` | `str` | `postgresql+asyncpg://synoptic:synoptic@localhost:5432/synopticspread` | Async SQLAlchemy connection URL |
-| `ecmwf_api_key` | `str` | `""` | Copernicus CDS API key; empty disables ECMWF |
-| `ecmwf_api_url` | `str` | `https://cds.climate.copernicus.eu/api` | CDS API endpoint |
+| *(removed)* | | | ECMWF no longer requires API keys — uses free open data |
 | `data_store_path` | `Path` | `./data` | Root directory for Zarr files and GRIB cache |
 | `scheduler_enabled` | `bool` | `true` | Enables APScheduler cron jobs |
 | `database_auto_create` | `bool` | `false` | Creates ORM tables on startup (bypasses Alembic) |
@@ -325,27 +324,27 @@ class ModelFetcher(ABC):
 - **Wind handling:** U and V components share a GRIB2 byte range in NAM CONUSNEST, so they're fetched together in a single `h.xarray()` call using a regex pattern
 - **Grid projection:** NAM CONUSNEST uses Lambert Conformal Conic projection with 2D `(y, x)` auxiliary `latitude`/`longitude` coordinates (not regular 1D arrays). This requires special handling in downstream point extraction and regridding.
 
-### 7.4 ECMWFFetcher — Copernicus CDS (ERA5 Reanalysis)
+### 7.4 ECMWFFetcher — ECMWF IFS Open Data (Real-Time Forecasts)
 
 **File:** `app/services/ingestion/ecmwf.py`
 
-**External dependency:** `cdsapi` library, connecting to the Copernicus Climate Data Store API.
+**External dependency:** `ecmwf-opendata` library, accessing ECMWF's free Open Data API.
 
 **CDS variable mapping:**
-| Canonical | CDS Variable Name | Product Type |
+| Canonical | IFS Open Data Param | Product Type |
 |---|---|---|
-| `precip` | `total_precipitation` | Single-level |
-| `wind_u` | `10m_u_component_of_wind` | Single-level |
-| `wind_v` | `10m_v_component_of_wind` | Single-level |
-| `mslp` | `mean_sea_level_pressure` | Single-level |
-| `hgt_500` | `geopotential` | Pressure-level (500 hPa) |
+| `precip` | `tp` | Surface |
+| `wind_u` | `10u` | Surface |
+| `wind_v` | `10v` | Surface |
+| `mslp` | `msl` | Surface |
+| `hgt_500` | `gh` (levelist=500) | Pressure-level (500 hPa) |
 
 **Fetch procedure:**
-1. **Initialization:** Attempts to create a `cdsapi.Client()`. If credentials are missing (`~/.cdsapirc` not configured or `ECMWF_API_KEY` unset), sets `self.client = None` and logs a warning. All subsequent `fetch()` calls return `{}` immediately.
-2. **Single-level variables:** Issues one `client.retrieve("reanalysis-era5-single-levels", ...)` call downloading all surface/single-level variables at once to a temporary GRIB file. Opened with `xr.open_dataset(engine="cfgrib")`.
-3. **Pressure-level variables:** If `hgt_500` is requested, issues a separate `client.retrieve("reanalysis-era5-pressure-levels", ...)` call for geopotential at 500 hPa. The DataArray is then sliced with `.sel(isobaricInhPa=500, drop=True)` to remove the pressure dimension.
-4. **Variable mapping:** CDS internal names (`tp`, `u10`, `v10`, `msl`, `z`) are mapped to canonical names. Wind speed is computed from components.
-5. **ERA5 caveat:** ERA5 is reanalysis (not forecast), so only `lead_hour=0` is returned.
+1. **Per-lead-hour:** Like GFS/NAM/HRRR, fetches each lead hour (0-120h, every 6h) independently. No API key required.
+2. **Surface variables:** Issues `client.retrieve(type="fc", step=fhr, param=["tp","10u","10v","msl"])` to download surface fields. Opened with `cfgrib.open_datasets()` (handles mixed level types) then merged.
+3. **Pressure-level variables:** If `hgt_500` is requested, issues a separate `client.retrieve(param="gh", levelist=500)` call for geopotential height at 500 hPa.
+4. **Variable mapping:** cfgrib names (`tp`, `u10`/`v10`, `msl`, `gh`) are mapped to canonical names. Wind speed is computed from components. IFS provides `gh` directly as geopotential height in meters (unlike ERA5 which used `z` in m²/s²).
+5. **Grid type:** IFS uses a regular 0.25° lat/lon grid, same as GFS — no Lambert Conformal handling needed.
 
 **Temporary file handling:** All GRIB files are downloaded to a `tempfile.TemporaryDirectory()` that is automatically cleaned up after processing.
 
@@ -445,9 +444,9 @@ An `AsyncIOScheduler` is instantiated at module level. Three cron jobs are regis
 |---|---|---|---|
 | `ingest_gfs` | GFS | 01:30, 07:30, 13:30, 19:30 | `["GFS"]` |
 | `ingest_nam` | NAM | 01:45, 07:45, 13:45, 19:45 | `["NAM"]` |
-| `ingest_ecmwf` | ECMWF | 14:00 (daily) | `["ECMWF"]` |
+| `ingest_ecmwf` | ECMWF | 05:00, 11:00, 17:00, 23:00 | `["ECMWF"]` |
 
-GFS and NAM run every 6 hours, offset ~1-1.5 hours after model initialization to allow data to become available on NOAA servers. ECMWF runs once daily since ERA5 00Z data typically becomes available 12-14 hours later.
+All models run every 6 hours, offset ~5 hours after model initialization (00/06/12/18Z) to allow data to become available. Models are staggered 15 minutes apart to avoid concurrent heavy downloads.
 
 ### 10.2 `ingest_and_process(model_name, init_time=None)`
 
@@ -546,7 +545,7 @@ Exception handling:
   - `MAX(spread)` → `max_spread`
   - `COUNT(id)` → `num_points`
 - Omits variables with 0 data points
-- Hardcodes `models_compared: ["GFS", "NAM", "ECMWF"]`
+- Hardcodes `models_compared: ["GFS", "NAM", "ECMWF", "HRRR"]`
 - Returns: `list[DivergenceSummary]`
 
 ### 11.3 Admin Endpoints (`routers/admin.py`)
@@ -558,7 +557,7 @@ Exception handling:
 
 **`POST /api/admin/trigger`**
 - Body: `{"model": "GFS", "init_time": "2026-02-25T18:00:00"}` (init_time optional)
-- Validates model name against `{"GFS", "NAM", "ECMWF"}`
+- Validates model name against `{"GFS", "NAM", "ECMWF", "HRRR"}`
 - Defaults to latest 6-hour cycle if init_time omitted
 - Runs ingestion as a FastAPI `BackgroundTask` (non-blocking)
 - Returns: `TriggerResponse` with status "queued"
@@ -628,7 +627,7 @@ The test suite uses `pytest` with `pytest-asyncio` (mode: `auto`). Tests are org
 | `test_metrics.py` | 5 | `extract_point` (exact + nearest), `compute_pairwise_metrics` (3 models → 3 pairs), `compute_ensemble_spread` (multi-model + single-model edge case) |
 | `test_grid.py` | 3 | `regrid_to_common` (shape consistency), `compute_grid_divergence` (value correctness: std([10,12,8])=2.0), minimum-2-models requirement |
 | `test_grid_zarr.py` | 6 | Zarr round-trip value preservation, path naming conventions, zero-padding, edge cases (missing variable, partial missing) |
-| `test_ingestion.py` | 6 | Wind speed computation (3-4-5 triangle), GFS non-wind fetch, GFS wind speed from U/V, GFS partial failure handling, NAM fetch, ECMWF graceful degradation without credentials |
+| `test_ingestion.py` | 8 | Wind speed computation (3-4-5 triangle), GFS non-wind fetch, GFS wind speed from U/V, GFS partial failure handling, NAM fetch, ECMWF surface fetch, ECMWF wind speed, ECMWF partial failure handling |
 | `test_scheduler.py` | 4 | `_latest_cycle` 6-hour boundary and round-down, idempotent skip of already-processed runs, error status on fetch failure |
 
 ### 14.3 Router Tests (`test_routers.py`)
@@ -713,7 +712,7 @@ Single-click deployment provisioning:
 | `alembic` | ≥1.14.0 | Database migrations |
 | `pydantic-settings` | ≥2.6.0 | Configuration management |
 | `herbie-data` | ≥2024.9.0 | GRIB2 data access from NOAA NOMADS |
-| `cdsapi` | ≥0.7.3 | Copernicus Climate Data Store API client |
+| `ecmwf-opendata` | ≥0.3.0 | ECMWF IFS real-time forecast data access (no API key) |
 | `xarray` | ≥2024.11.0 | Multi-dimensional labeled arrays |
 | `cfgrib` | ≥0.9.15 | GRIB2 to xarray via eccodes |
 | `metpy` | ≥1.6.0 | Meteorological calculations (dependency of herbie) |

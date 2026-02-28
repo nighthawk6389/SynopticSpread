@@ -58,6 +58,8 @@ const MODEL_COLORS: Record<string, string> = {
   NAM: '#f87171',
   ECMWF: '#34d399',
   HRRR: '#fbbf24',
+  AIGFS: '#e879f9',
+  RRFS: '#2dd4bf',
 }
 
 const PAIR_COLORS: Record<string, string> = {
@@ -67,6 +69,15 @@ const PAIR_COLORS: Record<string, string> = {
   'GFS-HRRR': '#fbbf24',
   'ECMWF-HRRR': '#a78bfa',
   'HRRR-NAM': '#fb923c',
+  'AIGFS-GFS': '#e879f9',
+  'AIGFS-NAM': '#c084fc',
+  'AIGFS-ECMWF': '#f0abfc',
+  'AIGFS-HRRR': '#d946ef',
+  'AIGFS-RRFS': '#a855f7',
+  'GFS-RRFS': '#2dd4bf',
+  'NAM-RRFS': '#5eead4',
+  'ECMWF-RRFS': '#14b8a6',
+  'HRRR-RRFS': '#99f6e4',
 }
 
 const PAIR_DASHES: Record<string, string> = {
@@ -76,6 +87,15 @@ const PAIR_DASHES: Record<string, string> = {
   'GFS-HRRR': '12 4',
   'ECMWF-HRRR': '4 2 4 2',
   'HRRR-NAM': '8 2 2 2',
+  'AIGFS-GFS': '2 2',
+  'AIGFS-NAM': '6 3',
+  'AIGFS-ECMWF': '10 3',
+  'AIGFS-HRRR': '4 4 2 4',
+  'AIGFS-RRFS': '8 2 4 2',
+  'GFS-RRFS': '6 2 2 2',
+  'NAM-RRFS': '10 2 2 2',
+  'ECMWF-RRFS': '4 2',
+  'HRRR-RRFS': '6 6',
 }
 
 export default function TimeSeriesPage() {

@@ -19,8 +19,8 @@ from app.routers import admin, alerts, divergence, forecasts, verification
 
 logger = logging.getLogger(__name__)
 
-# Models to seed on startup (ECMWF requires an API key so it is conditional).
-_SEED_MODELS = ["GFS", "NAM", "HRRR"]
+# Models to seed on startup.
+_SEED_MODELS = ["GFS", "NAM", "HRRR", "ECMWF"]
 
 
 async def _seed_initial_data():
@@ -65,11 +65,8 @@ async def _seed_initial_data():
         )
 
     models = list(_SEED_MODELS)
-    if settings.ecmwf_api_key:
-        models.append("ECMWF")
 
-    # Pin a single init_time so all models share the same forecast cycle and
-    # can be compared for divergence.
+    # All models share the same forecast cycle time.
     init_time = _latest_cycle()
     all_fetched: dict[str, dict] = {}
 

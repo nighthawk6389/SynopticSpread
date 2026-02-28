@@ -1,8 +1,8 @@
 """Tests for NWP data ingestion fetchers.
 
-External dependencies (Herbie, cdsapi) are mocked so no network calls are made.
-herbie is not installed in the test environment, so it is stubbed at the
-sys.modules level before any fetcher modules are imported.
+External dependencies (Herbie, ecmwf-opendata) are mocked so no network calls
+are made.  herbie is not installed in the test environment, so it is stubbed at
+the sys.modules level before any fetcher modules are imported.
 """
 
 import sys
@@ -150,32 +150,78 @@ def test_nam_fetches_requested_variable():
 
 
 # ---------------------------------------------------------------------------
-# ECMWFFetcher
+# ECMWFFetcher (ecmwf-opendata / IFS)
 # ---------------------------------------------------------------------------
 
 
-def test_ecmwf_init_graceful_when_cdsapi_unavailable():
-    """ECMWFFetcher sets client=None when cdsapi.Client() raises."""
-    mock_cdsapi = MagicMock()
-    mock_cdsapi.Client.side_effect = Exception("no credentials")
-
-    with patch.dict(sys.modules, {"cdsapi": mock_cdsapi}):
-        import importlib
-
-        import app.services.ingestion.ecmwf as ecmwf_mod
-
-        importlib.reload(ecmwf_mod)
-        fetcher = ecmwf_mod.ECMWFFetcher()
-
-    assert fetcher.client is None
-
-
-def test_ecmwf_fetch_returns_empty_without_client():
-    """ECMWFFetcher.fetch() returns {} immediately when client is None."""
+def test_ecmwf_fetches_surface_variables():
+    """ECMWFFetcher retrieves surface variables and maps to canonical names."""
     from app.services.ingestion.ecmwf import ECMWFFetcher
 
-    fetcher = ECMWFFetcher.__new__(ECMWFFetcher)
-    fetcher.client = None
+    mock_client = MagicMock()
+    sfc_ds = xr.Dataset(
+        {"tp": _da("tp", 0.005), "msl": _da("msl", 101325.0)}
+    )
 
-    result = fetcher.fetch(INIT_TIME, variables=["precip"], lead_hours=[0])
-    assert result == {}
+    with (
+        patch("ecmwf.opendata.Client", return_value=mock_client),
+        patch("cfgrib.open_datasets", return_value=[sfc_ds]),
+    ):
+        result = ECMWFFetcher().fetch(
+            INIT_TIME, variables=["precip", "mslp"], lead_hours=[0]
+        )
+
+    assert 0 in result
+    assert "precip" in result[0]
+    assert "mslp" in result[0]
+    assert float(result[0]["precip"].values.mean()) == pytest.approx(0.005)
+
+
+def test_ecmwf_computes_wind_speed():
+    """ECMWFFetcher computes wind_speed from u10 and v10 components."""
+    from app.services.ingestion.ecmwf import ECMWFFetcher
+
+    mock_client = MagicMock()
+    sfc_ds = xr.Dataset(
+        {"u10": _da("u10", 3.0), "v10": _da("v10", 4.0)}
+    )
+
+    with (
+        patch("ecmwf.opendata.Client", return_value=mock_client),
+        patch("cfgrib.open_datasets", return_value=[sfc_ds]),
+    ):
+        result = ECMWFFetcher().fetch(
+            INIT_TIME, variables=["wind_speed"], lead_hours=[0]
+        )
+
+    assert 0 in result
+    assert "wind_speed" in result[0]
+    assert np.allclose(result[0]["wind_speed"].values, 5.0)
+
+
+def test_ecmwf_failed_lead_hour_is_skipped():
+    """A fetch failure for one lead hour is logged and skipped."""
+    from app.services.ingestion.ecmwf import ECMWFFetcher
+
+    call_count = 0
+    mock_client = MagicMock()
+
+    def retrieve_side_effect(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count <= 1:
+            raise RuntimeError("download failed")
+
+    mock_client.retrieve = MagicMock(side_effect=retrieve_side_effect)
+    sfc_ds = xr.Dataset({"msl": _da("msl", 101000.0)})
+
+    with (
+        patch("ecmwf.opendata.Client", return_value=mock_client),
+        patch("cfgrib.open_datasets", return_value=[sfc_ds]),
+    ):
+        result = ECMWFFetcher().fetch(
+            INIT_TIME, variables=["mslp"], lead_hours=[0, 6]
+        )
+
+    assert 0 not in result, "Failed lead hour should be absent"
+    assert 6 in result, "Successful lead hour should be present"

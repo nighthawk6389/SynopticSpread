@@ -257,7 +257,7 @@ export function useDivergenceHistory(params: {
     queryKey: ['divergence-history', queryParams],
     queryFn: () =>
       api.get<SpreadHistoryOut>('/divergence/history', { params: queryParams }).then(r => r.data),
-    enabled,
+    enabled: enabled && !!queryParams.variable,
   })
 }
 

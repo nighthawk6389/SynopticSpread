@@ -40,8 +40,6 @@ class Settings(BaseSettings):
         self.database_url = url
         logger.info("DATABASE_URL after normalization: %s", _redact_url(url))
         return self
-    ecmwf_api_key: str = ""
-    ecmwf_api_url: str = "https://cds.climate.copernicus.eu/api"
     data_store_path: Path = Path("./data")
     scheduler_enabled: bool = True
     # Create ORM tables automatically on startup (set to true in production).

@@ -102,10 +102,6 @@ async def trigger_ingestion(req: TriggerRequest, background_tasks: BackgroundTas
 
     if req.init_time:
         init_time = req.init_time
-    elif model == "ECMWF":
-        from app.services.ingestion.ecmwf import latest_era5_cycle
-
-        init_time = latest_era5_cycle()
     else:
         init_time = _latest_cycle()
     background_tasks.add_task(_run_ingestion, model, init_time, req.force)

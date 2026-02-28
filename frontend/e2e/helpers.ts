@@ -21,7 +21,7 @@ export const MOCK_SUMMARIES = [
     max_spread: 4.56,
     min_spread: 0.01,
     num_points: 10,
-    models_compared: ['GFS', 'NAM', 'ECMWF', 'HRRR'],
+    models_compared: ['GFS', 'NAM', 'ECMWF', 'HRRR', 'AIGFS', 'RRFS'],
     init_time: 'latest',
   },
   {
@@ -30,7 +30,7 @@ export const MOCK_SUMMARIES = [
     max_spread: 2.34,
     min_spread: 0.05,
     num_points: 8,
-    models_compared: ['GFS', 'NAM', 'ECMWF', 'HRRR'],
+    models_compared: ['GFS', 'NAM', 'ECMWF', 'HRRR', 'AIGFS', 'RRFS'],
     init_time: 'latest',
   },
 ]
@@ -67,6 +67,22 @@ export const MOCK_RUNS = [
     forecast_hours: [0, 6, 12, 24, 30, 36, 42, 48],
     status: 'complete',
     created_at: '2024-01-15T01:15:00Z',
+  },
+  {
+    id: 'e5f6a7b8-c9d0-1234-efgh-234567890123',
+    model_name: 'AIGFS',
+    init_time: '2024-01-15T00:00:00Z',
+    forecast_hours: [0, 6, 12, 24, 48, 72, 120, 168, 240, 384],
+    status: 'complete',
+    created_at: '2024-01-15T01:35:00Z',
+  },
+  {
+    id: 'f6a7b8c9-d0e1-2345-fghi-345678901234',
+    model_name: 'RRFS',
+    init_time: '2024-01-15T00:00:00Z',
+    forecast_hours: [0, 6, 12, 24, 48, 72, 84],
+    status: 'complete',
+    created_at: '2024-01-15T01:20:00Z',
   },
 ]
 

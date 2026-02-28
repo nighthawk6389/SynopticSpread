@@ -90,27 +90,27 @@ def test_divergence_hours_empty_with_single_model():
     assert result == set()
 
 
-def test_divergence_hours_ecmwf_does_not_collapse_to_fhr0():
-    """Adding ECMWF (fhr=0 only) doesn't discard the other hours — this
-    was the bug the intersection approach caused."""
+def test_divergence_hours_ecmwf_has_full_coverage():
+    """ECMWF (IFS open data) now has the same lead hours as GFS (0-120h).
+    All four models overlap at lower hours; GFS+ECMWF cover 78-120h."""
     from app.services.scheduler import _compute_divergence_hours
 
-    # Matches real model coverage: GFS 0-120, NAM 0-72, HRRR 0-48, ECMWF 0
+    # Real model coverage: GFS 0-120, NAM 0-72, HRRR 0-48, ECMWF 0-120
     all_model_data = {
         "GFS": {h: None for h in range(0, 121, 6)},
         "NAM": {h: None for h in range(0, 73, 6)},
         "HRRR": {h: None for h in range(0, 49, 6)},
-        "ECMWF": {0: None},
+        "ECMWF": {h: None for h in range(0, 121, 6)},
     }
     result = _compute_divergence_hours(all_model_data)
 
-    # The intersection of all 4 would be {0}, but union keeps everything
     assert 0 in result
     assert 6 in result
     assert 48 in result
-    assert 54 in result   # GFS + NAM
-    assert 72 in result   # GFS + NAM
-    assert 78 not in result  # GFS only
+    assert 54 in result   # GFS + NAM + ECMWF
+    assert 72 in result   # GFS + NAM + ECMWF
+    assert 78 in result   # GFS + ECMWF (2 models)
+    assert 120 in result  # GFS + ECMWF (2 models)
 
 
 def test_divergence_hours_exact_set():

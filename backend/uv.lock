@@ -125,20 +125,6 @@ wheels = [
 ]
 
 [[package]]
-name = "cdsapi"
-version = "0.7.7"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "ecmwf-datastores-client" },
-    { name = "requests" },
-    { name = "tqdm" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/55/f3/6cb5b4bf077c441978c5d5be3a568d37e1f07f3e7177a17fa66aec2594b6/cdsapi-0.7.7.tar.gz", hash = "sha256:bc0cf807c1b78aceba6a11c3a5180f885f47f71a4e58205e324cfedcee16f10b", size = 13322, upload-time = "2025-09-30T19:11:22.404Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/4f/f4/4a65460d5cb6784128019fd707a87993f378db25e796eba01400a0903f62/cdsapi-0.7.7-py2.py3-none-any.whl", hash = "sha256:384c1658572d6dc53f4111f6dd46fcdfe6fea54a688af9756d71f6fe9118b66d", size = 12293, upload-time = "2025-09-30T19:11:21.184Z" },
-]
-
-[[package]]
 name = "certifi"
 version = "2026.2.25"
 source = { registry = "https://pypi.org/simple" }
@@ -452,8 +438,8 @@ name = "eccodeslib"
 version = "2.46.0.12"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "eckitlib" },
-    { name = "fckitlib" },
+    { name = "eckitlib", marker = "sys_platform != 'win32'" },
+    { name = "fckitlib", marker = "sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b4/e8/e85351cfee4c4930612d6f83f3968c298f2708d77d91fab415e61193c3e1/eccodeslib-2.46.0.12-cp311-cp311-macosx_13_0_arm64.whl", hash = "sha256:ed993458270f69d5d768ee140d0888fc71b9a7d87eb28028368d8988f833bf58", size = 8791191, upload-time = "2026-02-25T09:07:18.063Z" },
@@ -498,18 +484,15 @@ wheels = [
 ]
 
 [[package]]
-name = "ecmwf-datastores-client"
-version = "0.4.2"
+name = "ecmwf-opendata"
+version = "0.3.26"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "attrs" },
     { name = "multiurl" },
-    { name = "requests" },
-    { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/51/60/f86eb3e57baf2b1780a7046148c234e9e57b0aeb550d30f39e50991da253/ecmwf_datastores_client-0.4.2.tar.gz", hash = "sha256:7cee1f5e5dab34edcc794cd62bee02c603fafb6f4cc2121c5f012806e0f7934d", size = 48205, upload-time = "2026-01-21T15:27:31.665Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b6/16/074aee6fd1fa21b6445fb8429a16c50dac91053b66f3c99ada86b09665e2/ecmwf_opendata-0.3.26.tar.gz", hash = "sha256:8b49eed2282c167e50663b38768631a5b6d758fd947c4ea764d37433ac92523a", size = 28873, upload-time = "2025-12-04T15:08:29.677Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/04/40/2ccf4c87a5f9c8198fe71600d5f307f5dada201c091af8774a9c1e360865/ecmwf_datastores_client-0.4.2-py3-none-any.whl", hash = "sha256:d22a675b35263286de09969502ec897da9ceb9e4c8ec4d709f7ebb3b90d3ae98", size = 29092, upload-time = "2026-01-21T15:27:30.452Z" },
+    { url = "https://files.pythonhosted.org/packages/56/74/7795b50a4a74dd0d9b8f8b028912878da0e64969eb4889e64b7a75aeef63/ecmwf_opendata-0.3.26-py3-none-any.whl", hash = "sha256:e158bab54f86908dbc634c1660a527bd1d27dbe26ba4d8484f622cd8565185d6", size = 21818, upload-time = "2025-12-04T15:08:28.531Z" },
 ]
 
 [[package]]
@@ -533,7 +516,7 @@ name = "fckitlib"
 version = "0.14.2.12"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "eckitlib" },
+    { name = "eckitlib", marker = "sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/27/82/ceaa69af6617c6bfde899bcbf45fbdb0b93ee582200cd7c683c789c57c72/fckitlib-0.14.2.12-cp311-cp311-macosx_13_0_arm64.whl", hash = "sha256:cd49b1856e2ff537cb26273ae964b9e7b6b24aeb3e43b8dcb6553a7c8be2630a", size = 382222, upload-time = "2026-02-25T09:07:26.032Z" },
@@ -1961,8 +1944,8 @@ dependencies = [
     { name = "alembic" },
     { name = "apscheduler" },
     { name = "asyncpg" },
-    { name = "cdsapi" },
     { name = "cfgrib" },
+    { name = "ecmwf-opendata" },
     { name = "fastapi" },
     { name = "herbie-data" },
     { name = "httpx" },
@@ -1990,8 +1973,8 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.14.0" },
     { name = "apscheduler", specifier = ">=3.11.0" },
     { name = "asyncpg", specifier = ">=0.30.0" },
-    { name = "cdsapi", specifier = ">=0.7.3" },
     { name = "cfgrib", specifier = ">=0.9.15" },
+    { name = "ecmwf-opendata", specifier = ">=0.3.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "herbie-data", specifier = ">=2024.9.0" },
     { name = "httpx", specifier = ">=0.28.0" },

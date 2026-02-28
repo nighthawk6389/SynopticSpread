@@ -85,7 +85,7 @@ docker run -p 8000:8000 --env-file backend/.env synopticspread
 - A managed PostgreSQL database (free tier, 90-day limit)
 - A 20 GB persistent disk mounted at `/data` for Zarr files
 
-Set `ECMWF_API_KEY` in the Render environment panel if ECMWF ingestion is needed.
+All models (GFS, NAM, HRRR, ECMWF) are ingested automatically — no API keys required.
 
 ### Production Docker image
 
@@ -99,7 +99,7 @@ FastAPI detects `frontend_dist/` at startup and mounts it as static files, so th
 
 ### Data flow
 
-The scheduler (`app/services/scheduler.py`) fires APScheduler cron jobs at 05:15/11:15/17:15/23:15 UTC for HRRR, 05:30/11:30/17:30/23:30 UTC for GFS, 05:45/11:45/17:45/23:45 UTC for NAM, and 14:00 UTC for ECMWF. These times are ~5 hours after each 6-hourly model cycle (00/06/12/18Z) to allow for NOMADS data publication. Each job calls `ingest_and_process(model_name)`, which:
+The scheduler (`app/services/scheduler.py`) fires APScheduler cron jobs at 05:00/11:00/17:00/23:00 UTC for ECMWF, 05:15/11:15/17:15/23:15 UTC for HRRR, 05:30/11:30/17:30/23:30 UTC for GFS, and 05:45/11:45/17:45/23:45 UTC for NAM. These times are ~5 hours after each 6-hourly model cycle (00/06/12/18Z) to allow for data publication. Each job calls `ingest_and_process(model_name)`, which:
 
 1. Fetches GRIB2 data via a `ModelFetcher` subclass → returns `dict[lead_hour, xr.Dataset]`
 2. Computes pairwise RMSE/bias at each configured monitor point (`settings.monitor_points`) → stored as `PointMetric` rows in PostgreSQL
@@ -127,7 +127,7 @@ backend/app/
       base.py         — ModelFetcher ABC; canonical variable names (precip, wind_speed, mslp, hgt_500)
       gfs.py          — GFSFetcher using herbie-data
       nam.py          — NAMFetcher using herbie-data
-      ecmwf.py        — ECMWFFetcher using cdsapi (requires ECMWF_API_KEY)
+      ecmwf.py        — ECMWFFetcher using ecmwf-opendata (IFS real-time forecasts, no API key)
       hrrr.py         — HRRRFetcher using herbie-data (3km CONUS, Lambert Conformal like NAM)
     processing/
       metrics.py      — extract_point, compute_pairwise_metrics, compute_ensemble_spread
@@ -140,7 +140,7 @@ backend/app/
 ### Key contracts
 
 - All fetchers return `dict[int, xr.Dataset]` where keys are lead hours and each Dataset uses `latitude`/`longitude` as coordinate names with canonical variable names.
-- GFS uses a regular 1D lat/lon grid. NAM CONUSNEST and HRRR use Lambert Conformal projection with 2D `(y, x)` `latitude`/`longitude` auxiliary coordinates. Both `extract_point` (metrics.py) and `regrid_to_common` (grid.py) handle both coordinate dimensionalities — check `lat_coord.ndim` before choosing code path.
+- GFS and ECMWF (IFS) use regular 1D lat/lon grids (0.25°). NAM CONUSNEST and HRRR use Lambert Conformal projection with 2D `(y, x)` `latitude`/`longitude` auxiliary coordinates. Both `extract_point` (metrics.py) and `regrid_to_common` (grid.py) handle both coordinate dimensionalities — check `lat_coord.ndim` before choosing code path.
 - Grid divergence is per-grid-cell std-dev (ddof=1) across all available models, regridded to a common 0.25° grid.
 - The scheduler is idempotent: it checks for an existing `ModelRun` row before fetching.
 - Herbie requires timezone-naive datetimes; always call `init_time.replace(tzinfo=None)` before passing to `Herbie()`.
@@ -163,7 +163,6 @@ Configured in `backend/.env` (copy from `.env.example`):
 | Variable | Default | Notes |
 |---|---|---|
 | `DATABASE_URL` | postgres on localhost | Use `postgresql+asyncpg://` scheme |
-| `ECMWF_API_KEY` | — | Required for ECMWF ingestion; leave empty to skip |
 | `DATA_STORE_PATH` | `./data` | Where Zarr divergence grids are written |
 | `SCHEDULER_ENABLED` | `true` | Set to `false` for API-only / test mode |
 | `DATABASE_AUTO_CREATE` | `false` | Creates ORM tables on startup without Alembic (used in prod/Render) |

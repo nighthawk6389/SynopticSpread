@@ -27,7 +27,7 @@ test.describe('Dashboard – empty state', () => {
 
   test('shows the subtitle', async ({ page }) => {
     await expect(
-      page.getByText('Ensemble spread across GFS, NAM, ECMWF, and HRRR'),
+      page.getByText('Ensemble spread across all tracked models'),
     ).toBeVisible()
   })
 
@@ -97,11 +97,13 @@ test.describe('Dashboard – model runs table', () => {
     await page.goto('/')
   })
 
-  test('shows all model names including HRRR', async ({ page }) => {
-    await expect(page.getByRole('cell', { name: 'GFS' })).toBeVisible()
-    await expect(page.getByRole('cell', { name: 'NAM' })).toBeVisible()
-    await expect(page.getByRole('cell', { name: 'ECMWF' })).toBeVisible()
-    await expect(page.getByRole('cell', { name: 'HRRR' })).toBeVisible()
+  test('shows all model names', async ({ page }) => {
+    await expect(page.getByRole('cell', { name: 'GFS', exact: true })).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'NAM', exact: true })).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'ECMWF', exact: true })).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'HRRR', exact: true })).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'AIGFS', exact: true })).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'RRFS', exact: true })).toBeVisible()
   })
 
   test('renders the GFS init time', async ({ page }) => {

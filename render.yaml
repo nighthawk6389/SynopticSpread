@@ -12,8 +12,7 @@
 #   1. Push this repo to GitHub.
 #   2. In the Render dashboard → "New Blueprint" → point at your repo.
 #      Render reads this file and provisions everything automatically.
-#   3. Set ECMWF_API_KEY in the Render environment panel if you want ECMWF
-#      ingestion (leave empty to skip it).
+#   3. All models (GFS, NAM, HRRR, ECMWF) are ingested automatically.
 #
 # Plan notes
 # ──────────
@@ -59,10 +58,6 @@ services:
       # Seed data on first boot so the site shows data immediately.
       - key: SEED_DATA_ON_STARTUP
         value: "true"
-
-      # Optional – leave empty to skip ECMWF ingestion.
-      - key: ECMWF_API_KEY
-        value: ""
 
 databases:
   - name: synopticspread-db

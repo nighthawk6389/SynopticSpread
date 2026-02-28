@@ -133,10 +133,12 @@ async def ingest_and_process(
         PointMetric,
         RunStatus,
     )
-    from app.services.ingestion.ecmwf import ECMWFFetcher, latest_era5_cycle
+    from app.services.ingestion.aigfs import AIGFSFetcher
+    from app.services.ingestion.ecmwf import ECMWFFetcher
     from app.services.ingestion.gfs import GFSFetcher
     from app.services.ingestion.hrrr import HRRRFetcher
     from app.services.ingestion.nam import NAMFetcher
+    from app.services.ingestion.rrfs import RRFSFetcher
     from app.services.processing.grid import (
         compute_grid_divergence,
         save_divergence_zarr,
@@ -151,10 +153,15 @@ async def ingest_and_process(
         "NAM": NAMFetcher,
         "ECMWF": ECMWFFetcher,
         "HRRR": HRRRFetcher,
+        "AIGFS": AIGFSFetcher,
+        "RRFS": RRFSFetcher,
     }
     if init_time is None:
-        # ECMWF uses ERA5 reanalysis which is ~5 days behind real time
-        init_time = latest_era5_cycle() if model_name == "ECMWF" else _latest_cycle()
+        if model_name == "AIGFS":
+            # AIGFS only runs at 00Z and 12Z
+            init_time = _latest_cycle(hour_interval=12)
+        else:
+            init_time = _latest_cycle()
     logger.info("Starting ingestion for %s cycle %s", model_name, init_time)
 
     # Serialize ingestions so only one runs at a time, keeping the event loop free
@@ -432,7 +439,7 @@ async def ingest_and_process(
                 return None
 
 
-# Register cron jobs: GFS/NAM/HRRR every 6 hours, ECMWF once daily.
+# Register cron jobs: all models every 6 hours.
 # Data is typically published ~3.5-5h after cycle time on NOMADS, so
 # we fire ~5h after each cycle (00Z→05:xx, 06Z→11:xx, 12Z→17:xx, 18Z→23:xx).
 scheduler.add_job(
@@ -458,7 +465,7 @@ scheduler.add_job(
 scheduler.add_job(
     ingest_and_process,
     "cron",
-    hour=14,  # ECMWF 00Z run available ~12-14h later
+    hour="5,11,17,23",
     minute=0,
     args=["ECMWF"],
     id="ingest_ecmwf",
@@ -472,5 +479,27 @@ scheduler.add_job(
     minute=15,
     args=["HRRR"],
     id="ingest_hrrr",
+    replace_existing=True,
+)
+
+# AIGFS: 2x daily (00Z and 12Z cycles only, ~5h delay)
+scheduler.add_job(
+    ingest_and_process,
+    "cron",
+    hour="5,17",
+    minute=35,
+    args=["AIGFS"],
+    id="ingest_aigfs",
+    replace_existing=True,
+)
+
+# RRFS: 4x daily (prototype, 3km convection-allowing)
+scheduler.add_job(
+    ingest_and_process,
+    "cron",
+    hour="5,11,17,23",
+    minute=20,
+    args=["RRFS"],
+    id="ingest_rrfs",
     replace_existing=True,
 )
