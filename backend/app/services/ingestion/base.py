@@ -1,7 +1,14 @@
+import warnings
 from abc import ABC, abstractmethod
 from datetime import datetime
 
 import xarray as xr
+
+# Silence xarray/cfgrib FutureWarnings about merge compat defaults.
+# These fire on every xr.merge() call and clutter logs without being actionable
+# until the xarray breaking change actually lands.
+warnings.filterwarnings("ignore", category=FutureWarning, module=r"xarray\.")
+warnings.filterwarnings("ignore", category=FutureWarning, module=r"cfgrib\.")
 
 # Canonical variable names used throughout the application
 VARIABLES = {
