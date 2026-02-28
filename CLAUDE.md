@@ -99,12 +99,18 @@ FastAPI detects `frontend_dist/` at startup and mounts it as static files, so th
 
 ### Data flow
 
-The scheduler (`app/services/scheduler.py`) fires APScheduler cron jobs at 09:00/15:00/21:00/03:00 UTC for ECMWF (IFS data takes 7-9h to publish), 05:15/11:15/17:15/23:15 UTC for HRRR, 05:30/11:30/17:30/23:30 UTC for GFS, and 05:45/11:45/17:45/23:45 UTC for NAM. NOMADS models fire ~5h after each cycle; ECMWF fires ~9h after to allow for slower IFS data publication. Each job calls `ingest_and_process(model_name)`, which:
+The scheduler (`app/services/scheduler.py`) uses a memory-efficient two-phase architecture designed to fit in 2 GB RAM:
 
-1. Fetches GRIB2 data via a `ModelFetcher` subclass → returns `dict[lead_hour, xr.Dataset]`
-2. Computes pairwise RMSE/bias at each configured monitor point (`settings.monitor_points`) → stored as `PointMetric` rows in PostgreSQL
-3. Computes per-grid-cell std-dev across models → saved as Zarr files under `DATA_STORE_PATH/divergence/{init_time}/{variable}/fhr{NNN}.zarr`
-4. Records a `GridSnapshot` row pointing to each Zarr file
+**Phase 1 — Ingestion** (`ingest_and_process`): Each model has its own cron job (HRRR xx:15, RRFS xx:20, GFS xx:30, AIGFS xx:35, NAM xx:45, ECMWF xx+4:00). Each job fetches ONE model's GRIB2 data, extracts raw point values at monitor locations (`ModelPointValue` rows), and stores the `ModelRun` record. No cross-model work happens here, keeping peak memory to ~300 MB.
+
+**Phase 2 — Divergence** (`recompute_cycle_divergence`): A separate cron job at 08:00/14:00/20:00/02:00 UTC finds the latest init_time with 2+ completed models and computes all cross-model divergence. It fetches each model ONE lead hour at a time (~100 MB peak) to:
+
+1. Compute pairwise RMSE/bias/spread at each monitor point → `PointMetric` rows in PostgreSQL
+2. Compute per-grid-cell std-dev across models → Zarr files under `DATA_STORE_PATH/divergence/{init_time}/{variable}/fhr{NNN}.zarr`
+3. Record `GridSnapshot` rows pointing to each Zarr file
+4. Check alert rules
+
+The admin trigger endpoint (`POST /api/admin/trigger`) runs both phases sequentially. During startup seed, all models are ingested independently, then divergence is computed once for each unique init_time.
 
 ### Backend package layout
 
@@ -144,6 +150,8 @@ backend/app/
 - Grid divergence is per-grid-cell std-dev (ddof=1) across all available models, regridded to a common 0.25° grid.
 - The scheduler is idempotent: it checks for an existing `ModelRun` row before fetching.
 - Herbie requires timezone-naive datetimes; always call `init_time.replace(tzinfo=None)` before passing to `Herbie()`.
+- All fetchers have `del h; gc.collect()` in `finally` blocks per lead hour to free Herbie objects and intermediate xarray datasets immediately. ECMWF fetcher also explicitly `.close()`s cfgrib datasets.
+- `_clean_herbie_cache()` removes `~/.herbie/subset_*` files after each ingestion to prevent disk growth.
 
 ### Frontend
 

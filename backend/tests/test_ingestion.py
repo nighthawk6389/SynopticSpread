@@ -159,9 +159,7 @@ def test_ecmwf_fetches_surface_variables():
     from app.services.ingestion.ecmwf import ECMWFFetcher
 
     mock_client = MagicMock()
-    sfc_ds = xr.Dataset(
-        {"tp": _da("tp", 0.005), "msl": _da("msl", 101325.0)}
-    )
+    sfc_ds = xr.Dataset({"tp": _da("tp", 0.005), "msl": _da("msl", 101325.0)})
 
     with (
         patch("ecmwf.opendata.Client", return_value=mock_client),
@@ -182,9 +180,7 @@ def test_ecmwf_computes_wind_speed():
     from app.services.ingestion.ecmwf import ECMWFFetcher
 
     mock_client = MagicMock()
-    sfc_ds = xr.Dataset(
-        {"u10": _da("u10", 3.0), "v10": _da("v10", 4.0)}
-    )
+    sfc_ds = xr.Dataset({"u10": _da("u10", 3.0), "v10": _da("v10", 4.0)})
 
     with (
         patch("ecmwf.opendata.Client", return_value=mock_client),
@@ -219,9 +215,7 @@ def test_ecmwf_failed_lead_hour_is_skipped():
         patch("ecmwf.opendata.Client", return_value=mock_client),
         patch("cfgrib.open_datasets", return_value=[sfc_ds]),
     ):
-        result = ECMWFFetcher().fetch(
-            INIT_TIME, variables=["mslp"], lead_hours=[0, 6]
-        )
+        result = ECMWFFetcher().fetch(INIT_TIME, variables=["mslp"], lead_hours=[0, 6])
 
     assert 0 not in result, "Failed lead hour should be absent"
     assert 6 in result, "Successful lead hour should be present"

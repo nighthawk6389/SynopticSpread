@@ -1,3 +1,4 @@
+import gc
 import logging
 from datetime import datetime
 
@@ -57,5 +58,9 @@ class GFSFetcher(ModelFetcher):
                 logger.info("GFS fhr=%d fetched successfully", fhr)
             except Exception:
                 logger.exception("GFS fhr=%d fetch failed", fhr)
+            finally:
+                # Free Herbie object and intermediate datasets
+                del h
+                gc.collect()
 
         return results

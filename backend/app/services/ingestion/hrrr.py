@@ -1,3 +1,4 @@
+import gc
 import logging
 from datetime import datetime
 
@@ -64,5 +65,8 @@ class HRRRFetcher(ModelFetcher):
                 logger.info("HRRR fhr=%d fetched successfully", fhr)
             except Exception:
                 logger.exception("HRRR fhr=%d fetch failed", fhr)
+            finally:
+                del h
+                gc.collect()
 
         return results

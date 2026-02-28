@@ -1,3 +1,4 @@
+import gc
 import logging
 from datetime import datetime
 
@@ -85,5 +86,10 @@ class AIGFSFetcher(ModelFetcher):
                 logger.info("AIGFS fhr=%d fetched successfully", fhr)
             except Exception:
                 logger.exception("AIGFS fhr=%d fetch failed", fhr)
+            finally:
+                # Free Herbie objects (h_sfc, h_pres may not exist on failure)
+                for _name in ("h_sfc", "h_pres"):
+                    locals().pop(_name, None)
+                gc.collect()
 
         return results

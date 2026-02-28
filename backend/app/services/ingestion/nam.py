@@ -1,3 +1,4 @@
+import gc
 import logging
 from datetime import datetime
 
@@ -57,5 +58,8 @@ class NAMFetcher(ModelFetcher):
                 logger.info("NAM fhr=%d fetched successfully", fhr)
             except Exception:
                 logger.exception("NAM fhr=%d fetch failed", fhr)
+            finally:
+                del h
+                gc.collect()
 
         return results

@@ -8,6 +8,7 @@ This module monkey-patches Herbie's ``rrfs`` template at import time so that
 we can still use Herbie's ``.idx`` parsing, subsetting, and xarray integration.
 """
 
+import gc
 import logging
 from datetime import datetime
 
@@ -137,5 +138,8 @@ class RRFSFetcher(ModelFetcher):
                 logger.info("RRFS fhr=%d fetched successfully", fhr)
             except Exception:
                 logger.exception("RRFS fhr=%d fetch failed", fhr)
+            finally:
+                del h
+                gc.collect()
 
         return results

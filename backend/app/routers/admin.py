@@ -34,10 +34,12 @@ class TriggerResponse(BaseModel):
 
 
 async def _run_ingestion(model: str, init_time: datetime, force: bool = False):
-    from app.services.scheduler import ingest_and_process
+    from app.services.scheduler import ingest_and_process, recompute_cycle_divergence
 
     logger.info("Manual trigger: %s %s (force=%s)", model, init_time, force)
     await ingest_and_process(model, init_time, force=force)
+    # Recompute divergence with whatever models are available for this cycle
+    await recompute_cycle_divergence(init_time)
 
 
 # ---------------------------------------------------------------------------

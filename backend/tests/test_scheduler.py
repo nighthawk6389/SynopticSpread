@@ -56,10 +56,13 @@ def test_latest_cycle_rounds_down():
 
 @pytest.mark.asyncio
 async def test_ingest_skips_already_processed_run():
-    """If a ModelRun record already exists, ingest_and_process returns early
-    without calling the fetcher."""
+    """If a complete ModelRun record already exists, ingest_and_process returns
+    early without calling the fetcher."""
+    from app.models.model_run import RunStatus
+
     mock_db = AsyncMock()
     existing_run = MagicMock()
+    existing_run.status = RunStatus.complete
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = existing_run
     mock_db.execute.return_value = mock_result
@@ -97,6 +100,7 @@ async def test_ingest_sets_error_status_on_fetch_failure():
     mock_db = AsyncMock()
     mock_db.add = MagicMock()
     mock_db.commit = AsyncMock()
+    mock_db.flush = AsyncMock()
     # Return no existing run for every execute() call
     no_result = MagicMock()
     no_result.scalar_one_or_none.return_value = None
@@ -134,8 +138,11 @@ async def test_ingest_sets_error_status_on_fetch_failure():
 @pytest.mark.asyncio
 async def test_ingest_returns_none_when_already_processed():
     """ingest_and_process returns None (not data) for an already-ingested run."""
+    from app.models.model_run import RunStatus
+
     mock_db = AsyncMock()
     existing_run = MagicMock()
+    existing_run.status = RunStatus.complete
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = existing_run
     mock_db.execute.return_value = mock_result
@@ -161,6 +168,7 @@ async def test_ingest_returns_none_on_fetch_error():
     mock_db = AsyncMock()
     mock_db.add = MagicMock()
     mock_db.commit = AsyncMock()
+    mock_db.flush = AsyncMock()
     no_result = MagicMock()
     no_result.scalar_one_or_none.return_value = None
     mock_db.execute.return_value = no_result
@@ -189,28 +197,40 @@ async def test_ingest_returns_none_on_fetch_error():
 
 
 # ---------------------------------------------------------------------------
-# ingest_and_process – other_model_data avoids re-fetching
+# ingest_and_process – no cross-model re-fetching
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_ingest_uses_other_model_data_skips_refetch():
-    """When other_model_data is provided, the fetchers for those models
-    should NOT be called — only the current model's fetcher runs."""
+async def test_ingest_never_fetches_other_models():
+    """ingest_and_process only fetches the requested model — it never
+    re-downloads other models for cross-model divergence."""
     import numpy as np
     import xarray as xr
 
     run_record = MagicMock()
     run_record.status = "pending"
 
-    # Build a minimal dataset that won't crash extract_point / compute_*
-    fetched_data = {0: xr.Dataset({"precip": xr.DataArray(np.zeros((2, 2)))})}
+    # Build a minimal dataset with lat/lon coords
+    lat = np.array([39.0, 40.0])
+    lon = np.array([-75.0, -74.0])
+    fetched_data = {
+        0: xr.Dataset(
+            {
+                "precip": xr.DataArray(
+                    np.zeros((2, 2)),
+                    coords={"latitude": lat, "longitude": lon},
+                    dims=["latitude", "longitude"],
+                )
+            }
+        )
+    }
 
     mock_db = AsyncMock()
     mock_db.add = MagicMock()
     mock_db.commit = AsyncMock()
+    mock_db.flush = AsyncMock()
 
-    # First execute() returns "no existing run"; subsequent ones return None
     no_result = MagicMock()
     no_result.scalar_one_or_none.return_value = None
     no_result.scalars.return_value.all.return_value = []
@@ -233,15 +253,12 @@ async def test_ingest_uses_other_model_data_skips_refetch():
         ),
         patch("app.services.ingestion.nam.NAMFetcher") as mock_nam_cls,
         patch("app.services.ingestion.hrrr.HRRRFetcher") as mock_hrrr_cls,
+        patch("app.services.scheduler._clean_herbie_cache"),
     ):
         from app.services.scheduler import ingest_and_process
 
-        # Pass pre-fetched NAM data — GFS should not try to fetch NAM/HRRR
-        await ingest_and_process(
-            "GFS",
-            other_model_data={"NAM": fetched_data},
-        )
+        await ingest_and_process("GFS")
 
-    # NAM and HRRR fetchers should never be instantiated or called
+    # NAM and HRRR fetchers should never be instantiated
     mock_nam_cls.assert_not_called()
     mock_hrrr_cls.assert_not_called()

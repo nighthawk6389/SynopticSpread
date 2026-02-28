@@ -29,13 +29,9 @@ async def _seed_initial_data():
     Called as a background task during startup so the server is already
     accepting requests while data is being fetched.
 
-    Each model's fetched data is kept in memory and passed to the next
-    ingestion call via ``other_model_data`` so that:
-
-    * No model is re-downloaded from NOMADS for cross-model divergence.
-    * Divergence is computed (and old partial results cleared) as soon as
-      two or more models are available, giving the frontend data to show
-      as early as possible while models are still loading.
+    Each model is ingested independently (no data accumulation in memory).
+    After all models finish, ``recompute_cycle_divergence`` computes
+    cross-model metrics in a memory-efficient per-lead-hour loop.
 
     When ``FORCE_MODEL_RELOAD`` is set, existing data is cleared and all
     models are re-ingested regardless of what is already in the database.
@@ -44,7 +40,11 @@ async def _seed_initial_data():
 
     from app.database import async_session
     from app.models import ModelRun
-    from app.services.scheduler import _latest_cycle, ingest_and_process
+    from app.services.scheduler import (
+        _latest_cycle,
+        ingest_and_process,
+        recompute_cycle_divergence,
+    )
 
     force = settings.force_model_reload
 
@@ -72,9 +72,9 @@ async def _seed_initial_data():
     aigfs_init_time = _latest_cycle(hour_interval=12)
     # IFS open data takes 7-9h to publish (longer than NOMADS models)
     ecmwf_init_time = _latest_cycle(availability_delay_hours=9)
-    all_fetched: dict[str, dict] = {}
 
     logger.info("Seeding initial data for models: %s (cycle %s)", models, init_time)
+    n_success = 0
     for model in models:
         if model == "AIGFS":
             model_init = aigfs_init_time
@@ -86,26 +86,31 @@ async def _seed_initial_data():
             data = await ingest_and_process(
                 model,
                 init_time=model_init,
-                other_model_data=all_fetched,
                 force=force,
             )
             if data is not None:
-                all_fetched[model] = data
+                n_success += 1
+                # Free the returned data immediately — divergence will
+                # re-fetch per-lead-hour later with much lower memory.
+                del data
         except Exception:
             logger.exception("Seed ingestion failed for %s", model)
-
-        # Free memory between model ingestions
         gc.collect()
 
-    n_models = len(all_fetched)
-    # Release all cached model data now that seeding is complete
-    del all_fetched
+    # Compute cross-model divergence for each unique init_time.
+    unique_init_times = {init_time, aigfs_init_time, ecmwf_init_time}
+    for it in unique_init_times:
+        try:
+            await recompute_cycle_divergence(it)
+        except Exception:
+            logger.exception("Divergence computation failed for %s", it)
+
     gc.collect()
     logger.info(
         "Seed complete: %d/%d models loaded, divergence %s",
-        n_models,
+        n_success,
         len(models),
-        "computed" if n_models >= 2 else "skipped (need 2+ models)",
+        "computed" if n_success >= 2 else "skipped (need 2+ models)",
     )
 
 
@@ -145,7 +150,7 @@ async def lifespan(app: FastAPI):
                 )
                 if attempt == 4:
                     raise
-                wait = 2 ** attempt  # 1, 2, 4, 8, 16 s
+                wait = 2**attempt  # 1, 2, 4, 8, 16 s
                 logger.warning(
                     "Database not ready — retrying in %ds",
                     wait,

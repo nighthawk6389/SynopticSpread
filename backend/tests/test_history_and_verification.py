@@ -128,10 +128,12 @@ async def test_verification_scores_computes_correctly(http_client, db):
     # Forecast: init_time=00Z, lead_hour=6, value=10.0
     # Analysis: init_time=06Z, lead_hour=0, value=8.0
     # Error = 10.0 - 8.0 = 2.0, MAE = 2.0, bias = 2.0
-    db.add_all([
-        _mpv(run1.id, lead_hour=6, value=10.0),
-        _mpv(run2.id, lead_hour=0, value=8.0),
-    ])
+    db.add_all(
+        [
+            _mpv(run1.id, lead_hour=6, value=10.0),
+            _mpv(run2.id, lead_hour=0, value=8.0),
+        ]
+    )
     await db.commit()
 
     resp = await http_client.get(
@@ -157,12 +159,14 @@ async def test_verification_scores_filters_by_model(http_client, db):
     db.add_all([run_gfs, run_nam, run_gfs_analysis, run_nam_analysis])
     await db.commit()
 
-    db.add_all([
-        _mpv(run_gfs.id, lead_hour=6, value=10.0),
-        _mpv(run_gfs_analysis.id, lead_hour=0, value=8.0),
-        _mpv(run_nam.id, lead_hour=6, value=12.0),
-        _mpv(run_nam_analysis.id, lead_hour=0, value=9.0),
-    ])
+    db.add_all(
+        [
+            _mpv(run_gfs.id, lead_hour=6, value=10.0),
+            _mpv(run_gfs_analysis.id, lead_hour=0, value=8.0),
+            _mpv(run_nam.id, lead_hour=6, value=12.0),
+            _mpv(run_nam_analysis.id, lead_hour=0, value=9.0),
+        ]
+    )
     await db.commit()
 
     resp = await http_client.get(

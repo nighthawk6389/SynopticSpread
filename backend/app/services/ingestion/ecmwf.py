@@ -1,3 +1,4 @@
+import gc
 import logging
 import tempfile
 from datetime import datetime
@@ -48,18 +49,17 @@ class ECMWFFetcher(ModelFetcher):
             latest_naive = latest.replace(tzinfo=None)
             init_naive = init_time.replace(tzinfo=None)
             if latest_naive < init_naive:
-                logger.warning(
-                    "ECMWF IFS cycle %s not available yet (latest: %s). "
-                    "Skipping — will retry next schedule.",
-                    init_time,
-                    latest,
+                raise RuntimeError(
+                    f"ECMWF IFS cycle {init_time} not available yet "
+                    f"(latest: {latest}). Will retry next schedule."
                 )
-                return results
             logger.info(
                 "ECMWF IFS latest available cycle: %s (requested: %s)",
                 latest,
                 init_time,
             )
+        except RuntimeError:
+            raise
         except Exception:
             logger.warning(
                 "Could not check ECMWF IFS data availability; "
@@ -99,7 +99,7 @@ class ECMWFFetcher(ModelFetcher):
                         sfc_ds = xr.merge(sfc_datasets)
 
                         if "precip" in variables and "tp" in sfc_ds:
-                            arrays["precip"] = sfc_ds["tp"]
+                            arrays["precip"] = sfc_ds["tp"].load()
                         if "wind_speed" in variables:
                             u_var = "u10" if "u10" in sfc_ds else "10u"
                             v_var = "v10" if "v10" in sfc_ds else "10v"
@@ -108,7 +108,13 @@ class ECMWFFetcher(ModelFetcher):
                                     sfc_ds, u_var, v_var
                                 )
                         if "mslp" in variables and "msl" in sfc_ds:
-                            arrays["mslp"] = sfc_ds["msl"]
+                            arrays["mslp"] = sfc_ds["msl"].load()
+
+                        # Close cfgrib file handles
+                        for _d in sfc_datasets:
+                            _d.close()
+                        sfc_ds.close()
+                        del sfc_datasets, sfc_ds
 
                     # --- Pressure-level variables (500 hPa geopotential height) ---
                     if "hgt_500" in variables:
@@ -130,7 +136,9 @@ class ECMWFFetcher(ModelFetcher):
                             da = pl_ds[gh_var]
                             if "isobaricInhPa" in da.dims:
                                 da = da.sel(isobaricInhPa=500, drop=True)
-                            arrays["hgt_500"] = da
+                            arrays["hgt_500"] = da.load()
+                        pl_ds.close()
+                        del pl_ds
 
                 # Build dataset and normalise coordinate names.
                 ds = xr.Dataset(arrays)
@@ -142,5 +150,7 @@ class ECMWFFetcher(ModelFetcher):
 
             except Exception:
                 logger.exception("ECMWF IFS fhr=%d fetch failed", fhr)
+            finally:
+                gc.collect()
 
         return results
