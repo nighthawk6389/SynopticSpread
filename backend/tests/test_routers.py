@@ -207,11 +207,15 @@ async def test_grid_snapshots_returns_data():
 
 async def test_divergence_summary_empty():
     """Returns an empty list when no PointMetric rows exist."""
-    empty_row = MagicMock()
-    empty_row.num_points = 0
-    # summary endpoint calls execute() once per variable (4 total)
+
+    def _empty_result():
+        r = MagicMock()
+        r.all.return_value = []
+        return r
+
     session = AsyncMock()
-    session.execute.return_value = _mock_execute(one=empty_row)
+    # summary endpoint calls execute() once per variable (4 total)
+    session.execute.return_value = _empty_result()
 
     async with _client(session) as c:
         resp = await c.get("/api/divergence/summary")
@@ -223,25 +227,23 @@ async def test_divergence_summary_empty():
 async def test_divergence_summary_with_data():
     """Returns one DivergenceSummary entry for each variable that has data."""
 
-    def _row(num_points, mean_spread=None, max_spread=None):
+    def _spread_row(spread_val):
         row = MagicMock()
-        row.num_points = num_points
-        row.mean_spread = mean_spread
-        row.max_spread = max_spread
+        row.spread = spread_val
         return row
 
-    def _result(row):
+    def _result_with_rows(rows):
         r = MagicMock()
-        r.one_or_none.return_value = row
+        r.all.return_value = rows
         return r
 
     session = AsyncMock()
-    # Four variables: precip has data, others do not
+    # Four variables: precip has spread data, others empty
     session.execute.side_effect = [
-        _result(_row(10, 1.5, 3.0)),  # precip
-        _result(_row(0)),  # wind_speed
-        _result(_row(0)),  # mslp
-        _result(_row(0)),  # hgt_500
+        _result_with_rows([_spread_row(1.0), _spread_row(2.0), _spread_row(3.0)]),  # precip
+        _result_with_rows([]),  # wind_speed
+        _result_with_rows([]),  # mslp
+        _result_with_rows([]),  # hgt_500
     ]
 
     async with _client(session) as c:
@@ -251,9 +253,11 @@ async def test_divergence_summary_with_data():
     data = resp.json()
     assert len(data) == 1
     assert data[0]["variable"] == "precip"
-    assert data[0]["mean_spread"] == 1.5
+    assert data[0]["mean_spread"] == 2.0
+    assert data[0]["median_spread"] == 2.0
     assert data[0]["max_spread"] == 3.0
-    assert data[0]["num_points"] == 10
+    assert data[0]["min_spread"] == 1.0
+    assert data[0]["num_points"] == 3
     assert "GFS" in data[0]["models_compared"]
 
 

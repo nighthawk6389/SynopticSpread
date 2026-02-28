@@ -1,8 +1,7 @@
 import 'leaflet/dist/leaflet.css'
 import { MapContainer, TileLayer } from 'react-leaflet'
-import { useDivergenceGrid, useMonitorPoints, useRegionalDivergence } from '../api/client'
+import { useMonitorPoints, useRegionalDivergence } from '../api/client'
 import ClickTooltip from '../components/ClickTooltip'
-import DivergenceOverlay from '../components/Map/DivergenceOverlay'
 import MonitorPointMarker from '../components/Map/MonitorPointMarker'
 import PlaybackControls from '../components/Map/PlaybackControls'
 import RegionalOverlay from '../components/Map/RegionalOverlay'
@@ -24,7 +23,7 @@ const LEAD_HOUR_INFO =
 export default function MapPage() {
   const [variable, setVariable] = useUrlState('var', 'precip')
   const [leadHourStr, setLeadHourStr] = useUrlState('lead', '6')
-  const [overlayMode, setOverlayMode] = useUrlState('overlay', 'grid')
+  const [overlayMode, setOverlayMode] = useUrlState('overlay', 'regions')
   const [colorBy, setColorBy] = useUrlState('color', 'spread')
 
   const leadHour = parseInt(leadHourStr) || 6
@@ -36,7 +35,6 @@ export default function MapPage() {
     }
   }
 
-  const { data: gridData, isLoading } = useDivergenceGrid({ variable, lead_hour: leadHour })
   const { data: monitorPoints } = useMonitorPoints()
   const { data: regionalData } = useRegionalDivergence({ variable, lead_hour: leadHour })
 
@@ -114,36 +112,27 @@ export default function MapPage() {
               onChange={e => setOverlayMode(e.target.value)}
               className="control-select"
             >
-              <option value="grid">Grid Cells</option>
               <option value="regions">Regions</option>
               <option value="voronoi">Voronoi</option>
             </select>
           </div>
 
           {/* Color-by selector */}
-          {(overlayMode === 'regions' || overlayMode === 'voronoi') && (
-            <div>
-              <label className="block text-xs font-medium mb-1.5"
-                style={{ color: 'var(--text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                Color by
-              </label>
-              <select
-                value={colorBy}
-                onChange={e => setColorBy(e.target.value)}
-                className="control-select"
-              >
-                <option value="spread">Spread</option>
-                <option value="rmse">RMSE</option>
-                <option value="bias">Bias</option>
-              </select>
-            </div>
-          )}
-
-          {isLoading && (
-            <span className="text-xs self-center animate-pulse" style={{ color: 'var(--text-muted)' }}>
-              Loading grid…
-            </span>
-          )}
+          <div>
+            <label className="block text-xs font-medium mb-1.5"
+              style={{ color: 'var(--text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              Color by
+            </label>
+            <select
+              value={colorBy}
+              onChange={e => setColorBy(e.target.value)}
+              className="control-select"
+            >
+              <option value="spread">Spread</option>
+              <option value="rmse">RMSE</option>
+              <option value="bias">Bias</option>
+            </select>
+          </div>
         </div>
 
         {/* Playback controls */}
@@ -170,7 +159,6 @@ export default function MapPage() {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           />
-          {overlayMode === 'grid' && gridData && <DivergenceOverlay data={gridData} />}
           {overlayMode === 'regions' && regionalData && (
             <RegionalOverlay data={regionalData} metric={colorBy as 'spread' | 'rmse' | 'bias'} />
           )}

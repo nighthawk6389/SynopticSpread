@@ -135,7 +135,7 @@ interface VariableCardProps {
 }
 
 function VariableCard({ variable, rows, index }: VariableCardProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const meta = VAR_META[variable]
 
   if (rows.length === 0) {
@@ -189,12 +189,12 @@ function VariableCard({ variable, rows, index }: VariableCardProps) {
         </div>
       </div>
 
-      {/* Consensus summary */}
+      {/* Range + consensus summary */}
       <div>
-        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{consensusLabel}</p>
-        <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
-          Range: {minFmt.display}–{maxFmt.display} {minFmt.unit}
+        <p className="text-2xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>
+          {minFmt.display}–{maxFmt.display} <span className="text-base font-medium" style={{ color: 'var(--text-tertiary)' }}>{minFmt.unit}</span>
         </p>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>{consensusLabel}</p>
       </div>
 
       {/* Agreement badge */}

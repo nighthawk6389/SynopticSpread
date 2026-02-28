@@ -150,36 +150,35 @@ async def get_divergence_summary(
 ):
     """Return latest divergence summary per variable for the dashboard.
 
-    Optionally filter by location (lat/lon) to get city-specific stats.
+    Filters to lead hours 0–48 and optionally by location (lat/lon).
     """
-    from sqlalchemy import func
+    from statistics import median
 
     variables = ["precip", "wind_speed", "mslp", "hgt_500"]
     summaries = []
 
     for var in variables:
-        stmt = select(
-            func.avg(PointMetric.spread).label("mean_spread"),
-            func.max(PointMetric.spread).label("max_spread"),
-            func.min(PointMetric.spread).label("min_spread"),
-            func.count(PointMetric.id).label("num_points"),
-        ).where(PointMetric.variable == var)
+        stmt = select(PointMetric.spread).where(
+            PointMetric.variable == var,
+            PointMetric.lead_hour <= 48,
+        )
         if lat is not None and lon is not None:
             stmt = stmt.where(
                 PointMetric.lat.between(lat - 0.5, lat + 0.5),
                 PointMetric.lon.between(lon - 0.5, lon + 0.5),
             )
         result = await db.execute(stmt)
-        row = result.one_or_none()
+        spreads = [float(row.spread) for row in result.all()]
 
-        if row and row.num_points > 0:
+        if spreads:
             summaries.append(
                 DivergenceSummary(
                     variable=var,
-                    mean_spread=round(float(row.mean_spread or 0), 4),
-                    max_spread=round(float(row.max_spread or 0), 4),
-                    min_spread=round(float(row.min_spread or 0), 4),
-                    num_points=int(row.num_points),
+                    mean_spread=round(sum(spreads) / len(spreads), 4),
+                    median_spread=round(median(spreads), 4),
+                    max_spread=round(max(spreads), 4),
+                    min_spread=round(min(spreads), 4),
+                    num_points=len(spreads),
                     models_compared=["GFS", "NAM", "ECMWF", "HRRR"],
                     init_time="latest",
                 )

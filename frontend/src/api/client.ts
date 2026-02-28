@@ -40,6 +40,7 @@ export interface GridDivergenceData {
 export interface DivergenceSummary {
   variable: string
   mean_spread: number
+  median_spread: number
   max_spread: number
   min_spread: number
   num_points: number

@@ -171,21 +171,22 @@ function SummaryCard({ s, index, selectedLocation }: { s: DivergenceSummary; ind
         </div>
       )}
 
-      <div className="mt-3 grid grid-cols-3 gap-2">
+      <div className="mt-3 grid grid-cols-4 gap-2">
         {[
           { label: 'Min', value: s.min_spread },
+          { label: 'Median', value: s.median_spread },
           { label: 'Avg', value: s.mean_spread },
           { label: 'Max', value: s.max_spread },
         ].map(stat => (
           <div key={stat.label} className="rounded-lg p-2" style={{ background: 'var(--bg-elevated)' }}>
             <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{stat.label}</p>
-            <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--text-secondary)' }}>{stat.value.toFixed(2)}</p>
+            <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--text-secondary)' }}>{stat.value != null ? stat.value.toFixed(2) : '—'}</p>
           </div>
         ))}
       </div>
 
       <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-        {s.num_points} points · {s.models_compared.join(', ')}
+        0–48h forecast window · {s.num_points} points · {s.models_compared.join(', ')}
       </p>
     </div>
   )

@@ -48,6 +48,7 @@ class DivergenceSummary(BaseModel):
 
     variable: str
     mean_spread: float
+    median_spread: float
     max_spread: float
     min_spread: float
     num_points: int

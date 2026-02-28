@@ -474,6 +474,37 @@ export default function TimeSeriesPage() {
             </BarChart>
           </ResponsiveContainer>
         )}
+
+        {/* Metric definitions */}
+        {viewMode === 'aggregate' && (
+          <div className="mt-5 pt-4 space-y-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+            <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Metric definitions
+            </p>
+            <dl className="grid gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+              <div className="flex gap-2">
+                <dt className="font-semibold shrink-0" style={{ color: COLORS[0] }}>Ensemble Spread</dt>
+                <dd>Standard deviation of predicted values across models. Higher spread means models disagree more about the forecast.</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="font-semibold shrink-0" style={{ color: COLORS[1] }}>RMSE</dt>
+                <dd>Root Mean Square Error between model pairs. Measures the average magnitude of forecast differences — larger values indicate bigger disagreements.</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="font-semibold shrink-0" style={{ color: COLORS[2] }}>Bias</dt>
+                <dd>Systematic difference between model pairs. Positive bias means one model consistently predicts higher values than the other; negative means lower.</dd>
+              </div>
+            </dl>
+          </div>
+        )}
+
+        {viewMode === 'decomposition' && (
+          <div className="mt-5 pt-4" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              Each line represents the RMSE between a specific model pair. Steeper upward slopes indicate that two models diverge more at longer lead times.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
