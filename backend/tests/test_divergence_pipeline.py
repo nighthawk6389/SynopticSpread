@@ -11,7 +11,6 @@ import sys
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
-import pytest
 from sqlalchemy import select
 
 # Stub apscheduler / herbie so importing the scheduler module works.
@@ -26,8 +25,12 @@ for _pkg in (
 if "herbie" not in sys.modules:
     sys.modules["herbie"] = MagicMock()
 
-from app.models.divergence import GridSnapshot, ModelPointValue, PointMetric
-from app.models.model_run import ModelRun, RunStatus
+from app.models.divergence import (  # noqa: E402
+    GridSnapshot,
+    ModelPointValue,
+    PointMetric,
+)
+from app.models.model_run import ModelRun, RunStatus  # noqa: E402
 
 
 def _utc(*args) -> datetime:

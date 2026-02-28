@@ -176,7 +176,7 @@ async def clear_cache():
 )
 async def reset_all():
     async with async_session() as db:
-        model_values = (await db.execute(delete(ModelPointValue))).rowcount
+        await db.execute(delete(ModelPointValue))
         metrics = (await db.execute(delete(PointMetric))).rowcount
         snapshots = (await db.execute(delete(GridSnapshot))).rowcount
         runs = (await db.execute(delete(ModelRun))).rowcount

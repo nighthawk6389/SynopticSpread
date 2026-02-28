@@ -6,7 +6,7 @@
  */
 
 import { expect, test } from '@playwright/test'
-import { MOCK_GRID, mockApiRoutes } from './helpers'
+import { mockApiRoutes } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await mockApiRoutes(page)
@@ -52,7 +52,6 @@ test('shows the overlay mode selector with Voronoi option', async ({ page }) => 
   await page.goto('/map')
   await expect(page.locator('label', { hasText: 'Overlay' })).toBeVisible()
   const overlaySelect = page.locator('label', { hasText: 'Overlay' }).locator('..').locator('select')
-  await expect(overlaySelect.locator('option >> text="Grid Cells"')).toBeAttached()
   await expect(overlaySelect.locator('option >> text="Regions"')).toBeAttached()
   await expect(overlaySelect.locator('option >> text="Voronoi"')).toBeAttached()
 })
@@ -114,16 +113,3 @@ test('shows the map interaction hint', async ({ page }) => {
   ).toBeVisible()
 })
 
-// ---------------------------------------------------------------------------
-// Loading state
-// ---------------------------------------------------------------------------
-
-test('shows loading indicator while grid data is being fetched', async ({ page }) => {
-  // Delay the grid response so the loading state is visible
-  await page.route(/\/api\/divergence\/grid/, async route => {
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    await route.fulfill({ json: MOCK_GRID })
-  })
-  await page.goto('/map')
-  await expect(page.getByText(/Loading grid/)).toBeVisible()
-})

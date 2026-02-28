@@ -240,7 +240,9 @@ async def test_divergence_summary_with_data():
     session = AsyncMock()
     # Four variables: precip has spread data, others empty
     session.execute.side_effect = [
-        _result_with_rows([_spread_row(1.0), _spread_row(2.0), _spread_row(3.0)]),  # precip
+        _result_with_rows(  # precip
+            [_spread_row(1.0), _spread_row(2.0), _spread_row(3.0)]
+        ),
         _result_with_rows([]),  # wind_speed
         _result_with_rows([]),  # mslp
         _result_with_rows([]),  # hgt_500

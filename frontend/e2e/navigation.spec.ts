@@ -31,20 +31,20 @@ test('navbar contains all navigation links', async ({ page }) => {
 
 test('Dashboard link is highlighted when on the root path', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('link', { name: 'Dashboard' })).toHaveClass(/text-\[var\(--accent\)\]/)
+  await expect(page.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
 })
 
 test('Map link is highlighted when on /map', async ({ page }) => {
   await page.goto('/map')
   const nav = page.locator('nav')
-  await expect(nav.getByRole('link', { name: 'Map' })).toHaveClass(/text-\[var\(--accent\)\]/)
+  await expect(nav.getByRole('link', { name: 'Map' })).toHaveAttribute('aria-current', 'page')
   // Other links should not be active
-  await expect(nav.getByRole('link', { name: 'Dashboard' })).not.toHaveClass(/text-\[var\(--accent\)\]/)
+  await expect(nav.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current', 'page')
 })
 
 test('Time Series link is highlighted when on /timeseries', async ({ page }) => {
   await page.goto('/timeseries')
-  await expect(page.getByRole('link', { name: 'Time Series' })).toHaveClass(/text-\[var\(--accent\)\]/)
+  await expect(page.getByRole('link', { name: 'Time Series' })).toHaveAttribute('aria-current', 'page')
 })
 
 // ---------------------------------------------------------------------------

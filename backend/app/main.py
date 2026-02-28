@@ -14,8 +14,8 @@ logging.basicConfig(
     format="%(levelname)-5s [%(name)s] %(message)s",
 )
 
-from app.config import settings
-from app.routers import admin, alerts, divergence, forecasts, verification
+from app.config import settings  # noqa: E402
+from app.routers import admin, alerts, divergence, forecasts, verification  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("Startup — DATABASE_URL: %s", _redact_url(settings.database_url))
     logger.info(
-        "Startup — DATABASE_AUTO_CREATE=%s, SCHEDULER_ENABLED=%s, SEED_DATA_ON_STARTUP=%s",
+        "Startup — AUTO_CREATE=%s, SCHEDULER=%s, SEED=%s",
         settings.database_auto_create,
         settings.scheduler_enabled,
         settings.seed_data_on_startup,

@@ -197,8 +197,8 @@ async def test_ingest_returns_none_on_fetch_error():
 async def test_ingest_uses_other_model_data_skips_refetch():
     """When other_model_data is provided, the fetchers for those models
     should NOT be called — only the current model's fetcher runs."""
-    import xarray as xr
     import numpy as np
+    import xarray as xr
 
     run_record = MagicMock()
     run_record.status = "pending"
