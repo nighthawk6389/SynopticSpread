@@ -20,7 +20,7 @@ from app.routers import admin, alerts, divergence, forecasts, verification
 logger = logging.getLogger(__name__)
 
 # Models to seed on startup.
-_SEED_MODELS = ["GFS", "NAM", "HRRR", "ECMWF"]
+_SEED_MODELS = ["GFS", "NAM", "HRRR", "ECMWF", "AIGFS", "RRFS"]
 
 
 async def _seed_initial_data():
@@ -66,16 +66,19 @@ async def _seed_initial_data():
 
     models = list(_SEED_MODELS)
 
-    # All models share the same forecast cycle time.
+    # Most models share the same 6-hourly cycle time, but AIGFS only
+    # runs at 00Z/12Z so it needs its own init_time.
     init_time = _latest_cycle()
+    aigfs_init_time = _latest_cycle(hour_interval=12)
     all_fetched: dict[str, dict] = {}
 
     logger.info("Seeding initial data for models: %s (cycle %s)", models, init_time)
     for model in models:
+        model_init = aigfs_init_time if model == "AIGFS" else init_time
         try:
             data = await ingest_and_process(
                 model,
-                init_time=init_time,
+                init_time=model_init,
                 other_model_data=all_fetched,
                 force=force,
             )

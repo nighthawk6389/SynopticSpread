@@ -33,7 +33,7 @@ async def test_seed_skips_when_data_exists():
 
 @pytest.mark.asyncio
 async def test_seed_triggers_all_models_when_empty():
-    """_seed_initial_data triggers GFS, NAM, HRRR, and ECMWF when DB is empty."""
+    """_seed_initial_data triggers all models when DB is empty."""
     mock_db = AsyncMock()
     mock_result = MagicMock()
     mock_result.scalar.return_value = 0
@@ -58,6 +58,8 @@ async def test_seed_triggers_all_models_when_empty():
     assert "NAM" in called_models
     assert "HRRR" in called_models
     assert "ECMWF" in called_models
+    assert "AIGFS" in called_models
+    assert "RRFS" in called_models
 
 
 @pytest.mark.asyncio
@@ -90,8 +92,8 @@ async def test_seed_continues_on_individual_model_failure():
 
         await _seed_initial_data()
 
-    # All 4 models attempted even though GFS raised
-    assert mock_ingest.call_count == 4
+    # All 6 models attempted even though GFS raised
+    assert mock_ingest.call_count == 6
 
 
 # ---------------------------------------------------------------------------
@@ -120,6 +122,8 @@ async def test_seed_passes_accumulated_data_to_each_model():
     nam_data = {0: "nam_ds_0", 6: "nam_ds_6"}
     hrrr_data = {0: "hrrr_ds_0"}
     ecmwf_data = {0: "ecmwf_ds_0", 6: "ecmwf_ds_6"}
+    aigfs_data = {0: "aigfs_ds_0", 6: "aigfs_ds_6"}
+    rrfs_data = {0: "rrfs_ds_0", 6: "rrfs_ds_6"}
 
     # Capture a snapshot of other_model_data keys at each call
     snapshots: list[set[str]] = []
@@ -132,6 +136,8 @@ async def test_seed_passes_accumulated_data_to_each_model():
             "NAM": nam_data,
             "HRRR": hrrr_data,
             "ECMWF": ecmwf_data,
+            "AIGFS": aigfs_data,
+            "RRFS": rrfs_data,
         }[model]
 
     with (
@@ -148,7 +154,7 @@ async def test_seed_passes_accumulated_data_to_each_model():
 
         await _seed_initial_data()
 
-    assert len(snapshots) == 4
+    assert len(snapshots) == 6
 
     # GFS (1st): no prior data
     assert snapshots[0] == set()
@@ -161,6 +167,12 @@ async def test_seed_passes_accumulated_data_to_each_model():
 
     # ECMWF (4th): GFS + NAM + HRRR already fetched
     assert snapshots[3] == {"GFS", "NAM", "HRRR"}
+
+    # AIGFS (5th): GFS + NAM + HRRR + ECMWF already fetched
+    assert snapshots[4] == {"GFS", "NAM", "HRRR", "ECMWF"}
+
+    # RRFS (6th): all 5 prior models already fetched
+    assert snapshots[5] == {"GFS", "NAM", "HRRR", "ECMWF", "AIGFS"}
 
 
 @pytest.mark.asyncio
@@ -181,7 +193,13 @@ async def test_seed_excludes_failed_model_from_accumulated_data():
     async def _ingest_side_effect(model, **kwargs):
         if model == "GFS":
             raise RuntimeError("GFS download failed")
-        return {"NAM": nam_data, "HRRR": {0: "hrrr"}, "ECMWF": {0: "ecmwf"}}[model]
+        return {
+            "NAM": nam_data,
+            "HRRR": {0: "hrrr"},
+            "ECMWF": {0: "ecmwf"},
+            "AIGFS": {0: "aigfs"},
+            "RRFS": {0: "rrfs"},
+        }[model]
 
     with (
         patch("app.main.asyncio.sleep", new_callable=AsyncMock),
@@ -233,7 +251,13 @@ async def test_seed_excludes_none_return_from_accumulated_data():
     async def _ingest_side_effect(model, **kwargs):
         if model == "GFS":
             return None  # already ingested
-        return {"NAM": nam_data, "HRRR": {0: "hrrr"}, "ECMWF": {0: "ecmwf"}}[model]
+        return {
+            "NAM": nam_data,
+            "HRRR": {0: "hrrr"},
+            "ECMWF": {0: "ecmwf"},
+            "AIGFS": {0: "aigfs"},
+            "RRFS": {0: "rrfs"},
+        }[model]
 
     with (
         patch("app.main.asyncio.sleep", new_callable=AsyncMock),
