@@ -163,7 +163,17 @@ function SummaryCard({ s, index, selectedLocation }: { s: DivergenceSummary; ind
         {s.mean_spread.toFixed(2)}
         <span className="ml-1.5 text-sm font-normal" style={{ color: 'var(--text-tertiary)' }}>{unit}</span>
       </p>
-      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>avg ensemble spread</p>
+      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+        avg ensemble spread
+        <ClickTooltip>
+          <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Average Ensemble Spread</p>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            The standard deviation of predicted values across all available models (with Bessel's correction),
+            averaged over the 0–48h forecast window and all monitored locations. Higher values indicate greater
+            disagreement between models, signalling higher forecast uncertainty.
+          </p>
+        </ClickTooltip>
+      </p>
 
       {history && history.points.length >= 2 && (
         <div className="mt-3">
@@ -374,7 +384,7 @@ export default function DashboardPage() {
                         {pair}
                       </span>
                       <span className="font-mono text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                        {avgRmse.toFixed(3)}
+                        {avgRmse.toFixed(3)} {VARIABLE_UNITS['precip']}
                       </span>
                     </div>
                     <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border-subtle)' }}>

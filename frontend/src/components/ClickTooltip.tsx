@@ -20,7 +20,7 @@ export default function ClickTooltip({ children }: Props) {
   }, [open])
 
   return (
-    <span ref={ref} className="relative ml-1.5 cursor-pointer inline-block">
+    <span ref={ref} className="ml-1.5 cursor-pointer inline-block" style={{ position: 'relative', zIndex: open ? 50 : 'auto' }}>
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 20 20"
