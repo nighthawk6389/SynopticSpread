@@ -200,17 +200,18 @@ async def ingest_and_process(
             ).scalar_one_or_none()
 
             if existing_run:
-                if not force:
+                if existing_run.status == RunStatus.complete and not force:
                     logger.info(
                         "%s %s already ingested, skipping", model_name, init_time
                     )
                     return None
 
-                # Force mode: remove the existing run and associated data.
+                # Force mode or incomplete run: remove and retry.
                 logger.info(
-                    "%s %s exists — force-removing for re-ingestion",
+                    "%s %s exists (status=%s) — removing for re-ingestion",
                     model_name,
                     init_time,
+                    existing_run.status.value,
                 )
                 from sqlalchemy import delete as sa_delete
                 from sqlalchemy import or_
@@ -245,6 +246,10 @@ async def ingest_and_process(
                 # Run CPU-heavy GRIB2 fetch in a thread
                 fetcher = fetchers[model_name]()
                 data = await asyncio.to_thread(fetcher.fetch, init_time)
+                if not data:
+                    raise RuntimeError(
+                        f"{model_name} fetch returned no data for {init_time}"
+                    )
                 run.forecast_hours = sorted(data.keys())
 
                 # Store raw per-model point values at each monitor location.
