@@ -175,7 +175,7 @@ function VariableCard({ variable, rows, index }: VariableCardProps) {
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ background: 'var(--accent-glow)', border: '1px solid rgba(34,211,238,0.15)' }}>
+          style={{ background: 'var(--accent-glow)', border: '1px solid var(--border-subtle)' }}>
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
             strokeWidth={1.5} stroke="currentColor" className="w-5 h-5" style={{ color: 'var(--accent)' }}>
             <path strokeLinecap="round" strokeLinejoin="round" d={meta.icon} />

@@ -35,8 +35,8 @@ export default function MonitorPointMarker({ lat, lon, label, variable, leadHour
         className: '',
         html: `<div style="
           width:14px;height:14px;border-radius:50%;
-          background:#22d3ee;border:2px solid rgba(255,255,255,0.8);
-          box-shadow:0 0 10px rgba(34,211,238,0.6);
+          background:#2563EB;border:2px solid #FFFFFF;
+          box-shadow:0 1px 4px rgba(0,0,0,0.2);
           cursor:pointer;
         "></div>`,
         iconSize: [14, 14],

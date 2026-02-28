@@ -59,7 +59,7 @@ export default function VoronoiOverlay({ data, metric }: Props) {
       const latlngs: L.LatLngExpression[] = cell.map(([lon, lat]) => [lat, lon] as [number, number])
 
       L.polygon(latlngs, {
-        color: 'rgba(255,255,255,0.2)',
+        color: 'rgba(0,0,0,0.15)',
         fillColor: metricToColor(val, min, max),
         fillOpacity: 0.4,
         weight: 1,
