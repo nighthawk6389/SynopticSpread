@@ -143,7 +143,7 @@ function VariableCard({ variable, rows, index }: VariableCardProps) {
       <div className={`glass-card p-6 animate-slide-up delay-${index + 1}`}>
         <div className="mb-2 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)' }}>
+            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
               strokeWidth={1.5} stroke="currentColor" className="w-5 h-5" style={{ color: 'var(--text-tertiary)' }}>
               <path strokeLinecap="round" strokeLinejoin="round" d={meta.icon} />

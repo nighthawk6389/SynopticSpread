@@ -87,7 +87,11 @@ def main():
     subparsers.add_parser("status", help="Show DB and file counts")
 
     p_trigger = subparsers.add_parser("trigger", help="Queue model ingestion")
-    p_trigger.add_argument("model", choices=["GFS", "NAM", "ECMWF", "HRRR"], help="Model name")
+    p_trigger.add_argument(
+        "model",
+        choices=["GFS", "NAM", "ECMWF", "HRRR", "AIGFS", "RRFS"],
+        help="Model name",
+    )
     p_trigger.add_argument(
         "--time",
         dest="init_time",

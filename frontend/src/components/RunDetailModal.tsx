@@ -84,7 +84,7 @@ export default function RunDetailModal({ run, monitorPoints, onClose }: Props) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
-      style={{ background: 'rgba(6, 11, 24, 0.8)', backdropFilter: 'blur(8px)' }}
+      style={{ background: 'rgba(0, 0, 0, 0.3)', backdropFilter: 'blur(4px)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
@@ -93,7 +93,7 @@ export default function RunDetailModal({ run, monitorPoints, onClose }: Props) {
           background: 'var(--bg-base)',
           border: '1px solid var(--border-default)',
           borderRadius: '20px',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
+          boxShadow: '0 16px 48px rgba(0,0,0,0.12)',
         }}
       >
         {/* Header */}

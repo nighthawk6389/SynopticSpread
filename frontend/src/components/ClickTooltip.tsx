@@ -44,7 +44,7 @@ export default function ClickTooltip({ children }: Props) {
           style={{
             background: 'var(--bg-elevated)',
             border: '1px solid var(--border-default)',
-            boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
             color: 'var(--text-secondary)',
           }}
         >

@@ -70,11 +70,18 @@ async def _seed_initial_data():
     # runs at 00Z/12Z so it needs its own init_time.
     init_time = _latest_cycle()
     aigfs_init_time = _latest_cycle(hour_interval=12)
+    # IFS open data takes 7-9h to publish (longer than NOMADS models)
+    ecmwf_init_time = _latest_cycle(availability_delay_hours=9)
     all_fetched: dict[str, dict] = {}
 
     logger.info("Seeding initial data for models: %s (cycle %s)", models, init_time)
     for model in models:
-        model_init = aigfs_init_time if model == "AIGFS" else init_time
+        if model == "AIGFS":
+            model_init = aigfs_init_time
+        elif model == "ECMWF":
+            model_init = ecmwf_init_time
+        else:
+            model_init = init_time
         try:
             data = await ingest_and_process(
                 model,

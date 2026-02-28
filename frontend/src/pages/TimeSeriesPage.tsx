@@ -51,32 +51,32 @@ const PRESET_LOCATIONS = [
   { lat: 32.7157, lon: -117.1611, label: 'San Diego' },
 ]
 
-const COLORS = ['#22d3ee', '#f87171', '#34d399', '#fbbf24', '#a78bfa', '#fb923c']
+const COLORS = ['#2563EB', '#DC2626', '#16A34A', '#CA8A04', '#7C3AED', '#EA580C']
 
 const MODEL_COLORS: Record<string, string> = {
-  GFS: '#22d3ee',
-  NAM: '#f87171',
-  ECMWF: '#34d399',
-  HRRR: '#fbbf24',
-  AIGFS: '#e879f9',
-  RRFS: '#2dd4bf',
+  GFS: '#2563EB',
+  NAM: '#DC2626',
+  ECMWF: '#16A34A',
+  HRRR: '#CA8A04',
+  AIGFS: '#7C3AED',
+  RRFS: '#0D9488',
 }
 
 const PAIR_COLORS: Record<string, string> = {
-  'ECMWF-GFS': '#22d3ee',
-  'GFS-NAM': '#f87171',
-  'ECMWF-NAM': '#34d399',
-  'GFS-HRRR': '#fbbf24',
-  'ECMWF-HRRR': '#a78bfa',
-  'HRRR-NAM': '#fb923c',
-  'AIGFS-GFS': '#e879f9',
-  'AIGFS-NAM': '#c084fc',
-  'AIGFS-ECMWF': '#f0abfc',
-  'AIGFS-HRRR': '#d946ef',
-  'AIGFS-RRFS': '#a855f7',
-  'GFS-RRFS': '#2dd4bf',
-  'NAM-RRFS': '#5eead4',
-  'ECMWF-RRFS': '#14b8a6',
+  'ECMWF-GFS': '#2563EB',
+  'GFS-NAM': '#DC2626',
+  'ECMWF-NAM': '#16A34A',
+  'GFS-HRRR': '#CA8A04',
+  'ECMWF-HRRR': '#7C3AED',
+  'HRRR-NAM': '#EA580C',
+  'AIGFS-GFS': '#9333EA',
+  'AIGFS-NAM': '#A855F7',
+  'AIGFS-ECMWF': '#C084FC',
+  'AIGFS-HRRR': '#7C3AED',
+  'AIGFS-RRFS': '#6D28D9',
+  'GFS-RRFS': '#0D9488',
+  'NAM-RRFS': '#14B8A6',
+  'ECMWF-RRFS': '#0F766E',
   'HRRR-RRFS': '#99f6e4',
 }
 
@@ -317,7 +317,7 @@ export default function TimeSeriesPage() {
         </h3>
 
         {viewMode === 'verification' && (
-          <p className="text-xs mb-4 px-3 py-2 rounded-lg" style={{ color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)' }}>
+          <p className="text-xs mb-4 px-3 py-2 rounded-lg" style={{ color: 'var(--text-secondary)', background: 'var(--bg-elevated)' }}>
             Compares forecasts to the model's own analysis field (lead hour 0). MAE shown per model per lead hour.
           </p>
         )}
@@ -338,7 +338,7 @@ export default function TimeSeriesPage() {
         ) : viewMode === 'aggregate' ? (
           <ResponsiveContainer width="100%" height={350}>
             <LineChart data={chartData} margin={{ left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(56,103,187,0.12)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
               <XAxis
                 dataKey="lead_hour"
                 stroke="var(--text-tertiary)"
@@ -379,7 +379,7 @@ export default function TimeSeriesPage() {
         ) : viewMode === 'decomposition' ? (
           <ResponsiveContainer width="100%" height={350}>
             <LineChart data={decompChartData.data} margin={{ left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(56,103,187,0.12)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
               <XAxis
                 dataKey="lead_hour"
                 stroke="var(--text-tertiary)"
@@ -429,7 +429,7 @@ export default function TimeSeriesPage() {
         ) : (
           <ResponsiveContainer width="100%" height={350}>
             <BarChart data={verificationChartData.data} margin={{ left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(56,103,187,0.12)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
               <XAxis
                 dataKey="lead_hour"
                 stroke="var(--text-tertiary)"

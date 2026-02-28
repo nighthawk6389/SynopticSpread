@@ -163,12 +163,12 @@ export default function MapPage() {
         height: '620px',
         borderRadius: '16px',
         border: '1px solid var(--border-subtle)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
       }}>
         <MapContainer center={[39.8, -98.5]} zoom={4} className="h-full w-full">
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           />
           {overlayMode === 'grid' && gridData && <DivergenceOverlay data={gridData} />}
           {overlayMode === 'regions' && regionalData && (

@@ -40,6 +40,33 @@ class ECMWFFetcher(ModelFetcher):
 
         client = Client(source="ecmwf", model="ifs", resol="0p25")
 
+        # Quick availability check: ask the library what the latest cycle is.
+        # If our requested cycle isn't published yet, bail out early instead
+        # of spamming 404 errors for every lead hour.
+        try:
+            latest = client.latest(type="fc", step=0)
+            latest_naive = latest.replace(tzinfo=None)
+            init_naive = init_time.replace(tzinfo=None)
+            if latest_naive < init_naive:
+                logger.warning(
+                    "ECMWF IFS cycle %s not available yet (latest: %s). "
+                    "Skipping — will retry next schedule.",
+                    init_time,
+                    latest,
+                )
+                return results
+            logger.info(
+                "ECMWF IFS latest available cycle: %s (requested: %s)",
+                latest,
+                init_time,
+            )
+        except Exception:
+            logger.warning(
+                "Could not check ECMWF IFS data availability; "
+                "proceeding with requested cycle %s",
+                init_time,
+            )
+
         for fhr in lead_hours:
             try:
                 arrays: dict[str, xr.DataArray] = {}

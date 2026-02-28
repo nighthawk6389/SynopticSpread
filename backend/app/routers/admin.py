@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-VALID_MODELS = {"GFS", "NAM", "ECMWF", "HRRR"}
+VALID_MODELS = {"GFS", "NAM", "ECMWF", "HRRR", "AIGFS", "RRFS"}
 
 
 class TriggerRequest(BaseModel):
@@ -102,6 +102,11 @@ async def trigger_ingestion(req: TriggerRequest, background_tasks: BackgroundTas
 
     if req.init_time:
         init_time = req.init_time
+    elif model == "AIGFS":
+        init_time = _latest_cycle(hour_interval=12)
+    elif model == "ECMWF":
+        # IFS open data takes 7-9h to publish (longer than NOMADS models)
+        init_time = _latest_cycle(availability_delay_hours=9)
     else:
         init_time = _latest_cycle()
     background_tasks.add_task(_run_ingestion, model, init_time, req.force)

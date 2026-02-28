@@ -140,7 +140,7 @@ function SummaryCard({ s, index, selectedLocation }: { s: DivergenceSummary; ind
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)' }}>
+            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
               strokeWidth={1.5} stroke="currentColor" className="w-4.5 h-4.5"
               style={{ color: 'var(--text-secondary)' }}>
@@ -177,7 +177,7 @@ function SummaryCard({ s, index, selectedLocation }: { s: DivergenceSummary; ind
           { label: 'Avg', value: s.mean_spread },
           { label: 'Max', value: s.max_spread },
         ].map(stat => (
-          <div key={stat.label} className="rounded-lg p-2" style={{ background: 'rgba(255,255,255,0.02)' }}>
+          <div key={stat.label} className="rounded-lg p-2" style={{ background: 'var(--bg-elevated)' }}>
             <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{stat.label}</p>
             <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--text-secondary)' }}>{stat.value.toFixed(2)}</p>
           </div>

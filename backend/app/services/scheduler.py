@@ -160,6 +160,9 @@ async def ingest_and_process(
         if model_name == "AIGFS":
             # AIGFS only runs at 00Z and 12Z
             init_time = _latest_cycle(hour_interval=12)
+        elif model_name == "ECMWF":
+            # IFS open data takes 7-9h to publish (longer than NOMADS models)
+            init_time = _latest_cycle(availability_delay_hours=9)
         else:
             init_time = _latest_cycle()
     logger.info("Starting ingestion for %s cycle %s", model_name, init_time)
@@ -465,7 +468,7 @@ scheduler.add_job(
 scheduler.add_job(
     ingest_and_process,
     "cron",
-    hour="5,11,17,23",
+    hour="9,15,21,3",
     minute=0,
     args=["ECMWF"],
     id="ingest_ecmwf",

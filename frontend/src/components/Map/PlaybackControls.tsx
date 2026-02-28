@@ -49,8 +49,8 @@ export default function PlaybackControls({
         onClick={() => setPlaying(p => !p)}
         className="flex items-center justify-center w-9 h-9 rounded-xl transition-all"
         style={{
-          background: playing ? 'var(--accent-glow)' : 'rgba(255,255,255,0.04)',
-          border: `1px solid ${playing ? 'rgba(34,211,238,0.3)' : 'var(--border-subtle)'}`,
+          background: playing ? 'var(--accent-glow)' : 'var(--bg-elevated)',
+          border: `1px solid ${playing ? 'var(--accent)' : 'var(--border-subtle)'}`,
           color: playing ? 'var(--accent)' : 'var(--text-secondary)',
         }}
         title={playing ? 'Pause' : 'Play'}
@@ -70,7 +70,7 @@ export default function PlaybackControls({
         onClick={() => setSpeedIdx(i => (i + 1) % SPEEDS.length)}
         className="text-xs font-semibold px-2.5 py-1.5 rounded-lg min-w-[36px] transition-all"
         style={{
-          background: 'rgba(255,255,255,0.04)',
+          background: 'var(--bg-elevated)',
           border: '1px solid var(--border-subtle)',
           color: 'var(--text-secondary)',
           fontFamily: 'var(--font-display)',
